@@ -27,7 +27,7 @@ public class Program {
     @Enumerated(EnumType.STRING)
     private ProgramLevelType levelType;
 
-    private Boolean is_active = true;
+    private Boolean isActive = true;
 
     @CreationTimestamp
     @Column(nullable = false)

@@ -33,7 +33,7 @@ public class Registration {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private RegistrationStatus registrationStatus;
+    private RegistrationStatus status;
 
     @Column(nullable = false)
     private Integer totalCreditUnit = 0;
