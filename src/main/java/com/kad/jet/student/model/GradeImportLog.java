@@ -1,10 +1,9 @@
 package com.kad.jet.student.model;
 
-import com.kad.jet.user.model._user;
+import com.kad.jet.user.model._User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
-import org.springframework.scheduling.annotation.EnableAsync;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -24,7 +23,7 @@ public class GradeImportLog {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "imported_by", nullable = false)
-    private _user importedBy;
+    private _User importedBy;
 
     @Column(nullable = false)
     private String fileName;

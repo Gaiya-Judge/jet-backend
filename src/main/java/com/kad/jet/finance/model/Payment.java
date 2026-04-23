@@ -1,6 +1,6 @@
 package com.kad.jet.finance.model;
 
-import com.kad.jet.user.model._user;
+import com.kad.jet.user.model._User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -47,7 +47,7 @@ public class Payment {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "verified_by")
-    private _user verifiedBy;
+    private _User verifiedBy;
 
     private LocalDateTime verifiedAt;
 

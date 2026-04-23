@@ -1,6 +1,6 @@
 package com.kad.jet.student.model;
 
-import com.kad.jet.user.model._user;
+import com.kad.jet.user.model._User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -24,7 +24,7 @@ public class StudentProfile {
     @OneToOne(fetch = FetchType.LAZY)
     @MapsId
     @JoinColumn(name = "id")
-    private _user user;
+    private _User user;
 
     @Column(nullable = false, unique = true)
     private String matricNumber;

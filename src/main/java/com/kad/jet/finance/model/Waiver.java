@@ -1,6 +1,6 @@
 package com.kad.jet.finance.model;
 
-import com.kad.jet.user.model._user;
+import com.kad.jet.user.model._User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -39,7 +39,7 @@ public class Waiver {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by", nullable = false)
-    private _user approvedBy;
+    private _User approvedBy;
 
     @CreationTimestamp
     @Column(updatable = false)

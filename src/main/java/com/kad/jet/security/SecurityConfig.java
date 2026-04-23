@@ -1,9 +1,11 @@
 package com.kad.jet.security;
 
+import com.kad.jet.security.service.CustomUserDetails;
+import com.kad.jet.security.service.JwtFilter;
 import lombok.RequiredArgsConstructor;
-import org.apache.catalina.User;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -29,9 +31,11 @@ public class SecurityConfig {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth->
-                        auth.requestMatchers("api/v1/auth/**")
+                        auth.requestMatchers(HttpMethod.POST,"api/user/auth/**")
                                 .permitAll()
-                                .anyRequest().authenticated())
+                                .requestMatchers(HttpMethod.GET, "api/user/auth/login/**")
+                                .permitAll()
+                                .anyRequest().permitAll())
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())

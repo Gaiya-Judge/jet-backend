@@ -1,6 +1,6 @@
 package com.kad.jet.config.model;
 
-import com.kad.jet.user.model._user;
+import com.kad.jet.user.model._User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -27,7 +27,7 @@ public class SystemConfig {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by")
-    private _user updatedBy;
+    private _User updatedBy;
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;

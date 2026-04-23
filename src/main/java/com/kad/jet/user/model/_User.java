@@ -2,11 +2,16 @@ package com.kad.jet.user.model;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.apache.catalina.User;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -16,7 +21,7 @@ import java.util.UUID;
 @Builder
 @Entity
 @Table(name = "users")
-public class _user {
+public class _User implements UserDetails {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -43,7 +48,7 @@ public class _user {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
-    private _user createdBy;
+    private _User createdBy;
 
     @CreationTimestamp
     @Column(updatable = false)
@@ -51,4 +56,23 @@ public class _user {
 
     @UpdateTimestamp
     private LocalDateTime updateAt;
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return Set.of(
+                new SimpleGrantedAuthority(
+                        "ROLE_" + userRole.name()
+                )
+        );
+    }
+
+    @Override
+    public String getPassword() {
+        return passwordHashed;
+    }
+
+    @Override
+    public String getUsername() {
+        return email;
+    }
 }

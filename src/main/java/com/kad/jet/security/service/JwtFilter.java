@@ -1,5 +1,6 @@
-package com.kad.jet.security;
+package com.kad.jet.security.service;
 
+import com.kad.jet.user.model._User;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,24 +35,24 @@ public class JwtFilter extends OncePerRequestFilter {
 
         //extract token
         final String jwt = authHeader.substring(7);
-        final String email = jwtUtil.extractEmail(jwt);
+        final String email = JwtUtil.extractEmail(jwt);
 
         //check if email is present and is not yet authenticated
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null){
 
             //load user from database
-            UserDetails userDetails =
-                    customUserDetails.loadUserByUsername(email);
+            _User user =
+                    (_User) customUserDetails.loadUserByUsername(email);
 
             //token validation
-            if (jwtUtil.isTokenValid(jwt, userDetails)){
+            if (JwtUtil.isTokenValid(jwt, user)){
 
                 //create authentication object and set it in security context
                 UsernamePasswordAuthenticationToken authenticationToken =
                         new UsernamePasswordAuthenticationToken(
-                                userDetails,
+                                user,
                                 null,
-                                userDetails.getAuthorities()
+                                user.getAuthorities()
                         );
 
                 authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

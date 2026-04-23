@@ -1,7 +1,7 @@
 package com.kad.jet.registration.model;
 
 import com.kad.jet.semester.model.Semester;
-import com.kad.jet.user.model._user;
+import com.kad.jet.user.model._User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -25,7 +25,7 @@ public class Registration {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id")
-    private _user student;
+    private _User student;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "semester_id")
@@ -47,7 +47,7 @@ public class Registration {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assisted_by")
-    private _user assistedBy;
+    private _User assistedBy;
 
     @Column(columnDefinition = "TEXT")
     private String assistReason;

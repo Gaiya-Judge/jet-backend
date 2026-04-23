@@ -1,7 +1,7 @@
 package com.kad.jet.department.model;
 
 import com.kad.jet.program.model.Program;
-import com.kad.jet.user.model._user;
+import com.kad.jet.user.model._User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -32,7 +32,7 @@ public class Department {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hod_id")
-    private _user hod;
+    private _User hod;
 
     @Column(nullable = false)
     private Boolean isActive = true;

@@ -1,7 +1,7 @@
 package com.kad.jet.finance.model;
 
 import com.kad.jet.semester.model.Semester;
-import com.kad.jet.user.model._user;
+import com.kad.jet.user.model._User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -25,7 +25,7 @@ public class CreditBalance {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", nullable = false)
-    private _user student;
+    private _User student;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "source_semester_id", nullable = false)

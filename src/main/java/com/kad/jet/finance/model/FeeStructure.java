@@ -2,7 +2,7 @@ package com.kad.jet.finance.model;
 
 import com.kad.jet.program.model.Program;
 import com.kad.jet.semester.model.Semester;
-import com.kad.jet.user.model._user;
+import com.kad.jet.user.model._User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -38,7 +38,7 @@ public class FeeStructure {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(nullable = false)
-    private _user createdBy;
+    private _User createdBy;
 
     @CreationTimestamp
     @Column(updatable = false)
