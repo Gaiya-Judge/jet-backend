@@ -26,7 +26,7 @@ public class DataSeeder {
                         _User
                                 .builder()
                                 .email(email)
-                                .passwordHashed(encoder.encode(password))
+                                .password(encoder.encode(password))
                                 .createdAt(LocalDateTime.now())
                                 .fullName("admin jet")
                                 .isActive(true)

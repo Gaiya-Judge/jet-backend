@@ -1,5 +1,6 @@
 package com.kad.jet.user.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -10,7 +11,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -33,15 +33,16 @@ public class _User implements UserDetails {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false)
-    private String passwordHashed;
+    @JsonIgnore
+    @Column(nullable = false, name = "password_hashed")
+    private String password;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserRole userRole;
 
     @Column(nullable = false)
-    private Boolean isActive = false;
+    private Boolean isActive = true;
 
     @Column(nullable = false)
     private Boolean isBanned = false;
@@ -64,11 +65,6 @@ public class _User implements UserDetails {
                         "ROLE_" + userRole.name()
                 )
         );
-    }
-
-    @Override
-    public String getPassword() {
-        return passwordHashed;
     }
 
     @Override

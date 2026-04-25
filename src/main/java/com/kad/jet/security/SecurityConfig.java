@@ -1,6 +1,6 @@
 package com.kad.jet.security;
 
-import com.kad.jet.security.service.CustomUserDetails;
+import com.kad.jet.security.service.CustomUserDetailsService;
 import com.kad.jet.security.service.JwtFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -23,7 +23,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
-    private final CustomUserDetails customUserDetails;
+    private final CustomUserDetailsService customUserDetails;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {

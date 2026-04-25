@@ -37,5 +37,18 @@ public class RoleChecker {
     public static boolean is_student(_User user){
         return user != null && user.getUserRole() == UserRole.STUDENT;
     }
+
+    public static boolean hasAnyRole(_User user, UserRole... roles){
+        if (user == null && user.getUserRole() == null){
+            return false;
+        }
+
+        for (UserRole role : roles){
+            if (user.getUserRole() == role){
+                return true;
+            }
+        }
+        return false;
+    }
 }
 

@@ -44,7 +44,6 @@ public class JwtUtil {
         }
 
         try {
-            System.out.println("jwt key =" + secretKey);
             byte[] keyByte = Decoders.BASE64.decode(secretKey);
             return Keys.hmacShaKeyFor(keyByte);
         }catch (RuntimeException e){

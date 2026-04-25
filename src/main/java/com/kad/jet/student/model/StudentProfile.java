@@ -1,5 +1,6 @@
 package com.kad.jet.student.model;
 
+import com.kad.jet.program.model.Program;
 import com.kad.jet.user.model._User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -28,6 +29,10 @@ public class StudentProfile {
 
     @Column(nullable = false, unique = true)
     private String matricNumber;
+
+//    @ManyToOne(fetch = FetchType.LAZY)
+//    @Column
+//    private Program program;
 
     @Column(nullable = false)
     private Integer level;

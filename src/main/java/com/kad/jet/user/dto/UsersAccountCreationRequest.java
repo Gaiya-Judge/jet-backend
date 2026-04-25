@@ -13,8 +13,8 @@ import lombok.Setter;
 @NoArgsConstructor
 public class UsersAccountCreationRequest {
 
-    @NotBlank(message = "user role is required")
-    String userRole;
+    //@NotBlank(message = "user role is required")
+    UserRole userRole;
 
     @NotBlank(message = "user email required")
     String email;
@@ -24,4 +24,5 @@ public class UsersAccountCreationRequest {
 
     @NotBlank(message = "password needed for user authentication")
     String password;
+
 }
