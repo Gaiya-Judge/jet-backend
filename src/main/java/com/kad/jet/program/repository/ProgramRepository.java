@@ -13,4 +13,6 @@ public interface ProgramRepository extends JpaRepository<Program, UUID> {
     List<Program> findByIsActiveTrue();
 
     boolean existsByName(String name);
+
+    boolean existsById(UUID id);
 }
