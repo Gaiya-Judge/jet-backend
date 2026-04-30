@@ -31,6 +31,12 @@ public class Course {
     @Enumerated(EnumType.STRING)
     private CourseType courseType;
 
+    @Column(nullable = false)
+    private Integer level;
+
+    @Column(nullable = false)
+    private Integer creditUnits;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
     private Department department;
