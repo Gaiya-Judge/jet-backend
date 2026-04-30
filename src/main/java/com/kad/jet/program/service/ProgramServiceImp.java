@@ -77,8 +77,19 @@ public class ProgramServiceImp implements ProgramService {
     }
 
     @Override
-    public ProgramResponse getProgramById(UUID programId) {
+    public ProgramResponse getActiveProgramById(UUID programId) {
         Program program = findById(programId);
+
+        return ProgramMapper.toDto(program);
+    }
+
+    @Override
+    public ProgramResponse getProgramById(UUID programId, _User currentUser) {
+        if (!RoleChecker.hasAnyRole(currentUser, UserRole.SUPER_ADMIN, UserRole.IT_ADMIN)){
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+        }
+        Program program = programRepository.findById(programId)
+                .orElseThrow(()-> new ResponseStatusException(HttpStatus.NOT_FOUND, "program not found"));
 
         return ProgramMapper.toDto(program);
     }
@@ -106,8 +117,37 @@ public class ProgramServiceImp implements ProgramService {
     }
 
     @Override
-    public ProgramPageResponse<ProgramResponse> getAllProgram(int page, int size) {
+    public ProgramPageResponse<ProgramResponse> getAllActiveProgram(int page, int size) {
 
+        if (size > 10) size = 10;
+        if (page < 0) page = 0;
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<Program> result = programRepository.findByIsActiveTrue(pageable);
+
+        List<ProgramResponse> content = result
+                .getContent()
+                .stream()
+                .map(ProgramMapper::toDto)
+                .toList();
+
+        return new ProgramPageResponse<>(
+                content,
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages(),
+                result.isFirst(),
+                result.isLast()
+        );
+    }
+
+    @Override
+    public ProgramPageResponse<ProgramResponse> getAllProgram(int page, int size, _User currentUser) {
+
+        if (!RoleChecker.hasAnyRole(currentUser, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+        }
         if (size > 10) size = 10;
         if (page < 0) page = 0;
 
@@ -132,7 +172,7 @@ public class ProgramServiceImp implements ProgramService {
     }
 
     private Program findById(UUID programId){
-        return programRepository.findById(programId)
+        return programRepository.findByIdAndIsActive(programId,true)
                 .orElseThrow(()-> new ResponseStatusException(HttpStatus.NOT_FOUND, "program not found"));
     }
 }

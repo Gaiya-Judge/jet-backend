@@ -10,6 +10,7 @@ public class ProgramMapper {
                 .builder()
                 .name(program.getName())
                 .programId(program.getId())
+                .isActive(program.getIsActive())
                 .programLevelType(program.getLevelType())
                 .build();
     }

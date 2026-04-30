@@ -14,9 +14,13 @@ public interface ProgramService {
 
     void deleteProgram(_User currentUser, UUID programId);
 
-    ProgramResponse getProgramById(UUID programId);
+    ProgramResponse getActiveProgramById(UUID programId);
+
+    ProgramResponse getProgramById(UUID programId, _User currentUser);
 
     ProgramResponse updateProgram(_User currentUser, UUID programId, UpdateProgramRequest programRequest);
 
-    ProgramPageResponse<ProgramResponse> getAllProgram(int page, int size);
+    ProgramPageResponse<ProgramResponse> getAllActiveProgram(int page, int size);
+
+    ProgramPageResponse<ProgramResponse> getAllProgram(int page, int size, _User currentUser);
 }

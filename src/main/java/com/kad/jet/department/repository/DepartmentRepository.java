@@ -7,11 +7,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface DepartmentRepository extends JpaRepository<Department, UUID> {
     List<Department> findByProgramIdAndIsActiveTrue(UUID programId);
+
+    Optional<Department> findByIdAndIsActiveTrue(UUID departmentId, boolean isActive);
 
     List<Department> findByProgramId(UUID programId);
     Page<Department> findByIsActiveTrue(Pageable pageable);

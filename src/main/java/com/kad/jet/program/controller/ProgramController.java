@@ -7,9 +7,11 @@ import com.kad.jet.program.dto.UpdateProgramRequest;
 import com.kad.jet.program.service.ProgramService;
 import com.kad.jet.user.model._User;
 import jakarta.validation.Valid;
+import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,7 +25,8 @@ public class ProgramController {
     private final ProgramService programService;
 
     @PostMapping("/create")
-    public ResponseEntity<?> createProgram(@AuthenticationPrincipal _User currentUser, @RequestBody @Valid CreateProgramRequest programRequest){
+    public ResponseEntity<?> createProgram(@AuthenticationPrincipal _User currentUser,
+                                           @RequestBody @Valid CreateProgramRequest programRequest){
         ProgramResponse response = programService.createNewProgram(currentUser, programRequest);
 
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -31,30 +34,51 @@ public class ProgramController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteProgram(@AuthenticationPrincipal _User currentUser, @PathVariable(name = "id")UUID programId){
+    public ResponseEntity<?> deleteProgram(@AuthenticationPrincipal _User currentUser,
+                                           @PathVariable(name = "id")UUID programId){
         programService.deleteProgram(currentUser, programId);
 
         return ResponseEntity.ok("program deleted");
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getProgramById(@PathVariable(name = "id") UUID programId){
-        ProgramResponse response = programService.getProgramById(programId);
+    public ResponseEntity<?> getActiveProgramById(@PathVariable(name = "id") UUID programId){
+        ProgramResponse response = programService.getActiveProgramById(programId);
 
         return ResponseEntity.ok(response);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateProgram(@AuthenticationPrincipal _User currentUser, @PathVariable(name = "id") UUID programId, @RequestBody UpdateProgramRequest programRequest){
+    public ResponseEntity<?> updateProgram(@AuthenticationPrincipal _User currentUser,
+                                           @PathVariable(name = "id") UUID programId,
+                                           @RequestBody UpdateProgramRequest programRequest){
         ProgramResponse response = programService.updateProgram(currentUser, programId, programRequest);
 
         return ResponseEntity.ok(response);
     }
 
     @GetMapping
-    public ResponseEntity<?> getAllProgram(@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size){
-        ProgramPageResponse<ProgramResponse> response = programService.getAllProgram(page, size);
+    public ResponseEntity<?> getAllActiveProgram(@RequestParam(defaultValue = "0") int page,
+                                                 @RequestParam(defaultValue = "10") int size){
+        ProgramPageResponse<ProgramResponse> response = programService.getAllActiveProgram(page, size);
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/all")
+    public ResponseEntity<?> getAllProgram(@RequestParam(defaultValue = "0") int page,
+                                           @RequestParam(defaultValue = "10") int size,
+                                           @AuthenticationPrincipal _User currentUser){
+        ProgramPageResponse<ProgramResponse> response = programService.getAllProgram(page, size, currentUser);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}/all")
+    public ResponseEntity<?> getProgram(@PathVariable(name = "id") UUID programId, @AuthenticationPrincipal _User currentUser){
+        ProgramResponse response = programService.getProgramById(programId, currentUser);
+
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .body(response);
     }
 }

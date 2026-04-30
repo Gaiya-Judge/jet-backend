@@ -36,7 +36,7 @@ public class DepartmentServiceImp implements DepartmentService {
     @Override
     public DepartmentResponse createDepartment(_User currentUser, CreateDepartmentRequest departmentRequest) {
         //check role
-        if (!RoleChecker.hasAnyRole(currentUser, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)){
+        if (!isAdmin(currentUser)){
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
         }
         //check if program exits
@@ -68,7 +68,7 @@ public class DepartmentServiceImp implements DepartmentService {
     @Override
     public void softDeleteDepartment(_User currentUser, UUID departmentId) {
 
-        if (!RoleChecker.hasAnyRole(currentUser, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)) {
+        if (!isAdmin(currentUser)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
         }
 
@@ -84,7 +84,7 @@ public class DepartmentServiceImp implements DepartmentService {
     @Override
     public DepartmentResponse updateDepartment(_User currentUser, UUID departmentId, UpdateDepartmentRequest departmentRequest) {
 
-        if (!RoleChecker.hasAnyRole(currentUser, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)){
+        if (!isAdmin(currentUser)){
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
         }
 
@@ -106,7 +106,8 @@ public class DepartmentServiceImp implements DepartmentService {
 
     @Override
     public DepartmentResponse getDepartment(UUID departmentIid) {
-        Department department = findById(departmentIid);
+        Department department = departmentRepository.findByIdAndIsActiveTrue(departmentIid, true)
+                .orElseThrow(()-> new ResponseStatusException(HttpStatus.NOT_FOUND, "department not found"));
 
         return DepartmentMapper.toDto(department);
     }

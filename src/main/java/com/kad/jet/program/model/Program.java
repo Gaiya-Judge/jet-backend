@@ -25,8 +25,10 @@ public class Program {
     private String name;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private ProgramLevelType levelType;
 
+    @Column(nullable = false)
     private Boolean isActive = true;
 
     @CreationTimestamp
