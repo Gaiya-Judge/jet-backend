@@ -14,7 +14,7 @@ import java.util.UUID;
 public interface DepartmentRepository extends JpaRepository<Department, UUID> {
     List<Department> findByProgramIdAndIsActiveTrue(UUID programId);
 
-    Optional<Department> findByIdAndIsActiveTrue(UUID departmentId, boolean isActive);
+    Optional<Department> findByIdAndIsActiveTrue(UUID departmentId);
 
     List<Department> findByProgramId(UUID programId);
     Page<Department> findByIsActiveTrue(Pageable pageable);

@@ -30,8 +30,8 @@ public class DepartmentController {
     }
 
     @GetMapping
-    public ResponseEntity<?> getAllDepartment(@RequestParam(defaultValue = "0") int size,
-                                              @RequestParam(defaultValue = "10") int page){
+    public ResponseEntity<?> getAllDepartment(@RequestParam(defaultValue = "10") int size,
+                                              @RequestParam(defaultValue = "0") int page){
         DepartmentPageResponse<DepartmentResponse> response = departmentService.getAllDepartment(size, page);
 
         return ResponseEntity.ok(response);
@@ -81,7 +81,7 @@ public class DepartmentController {
                 .body(response);
     }
 
-    @GetMapping("/admin")
+    @GetMapping("/all")
     public ResponseEntity<?> getAllDepartment(@AuthenticationPrincipal _User currentUser,
                                               @RequestParam(defaultValue = "10") int size,
                                               @RequestParam(defaultValue = "0") int page){
@@ -91,7 +91,7 @@ public class DepartmentController {
                 .body(response);
     }
 
-    @GetMapping("/program/{id}/admin")
+    @GetMapping("/program/{id}/all")
     public ResponseEntity<?> getProgramDepartments(@AuthenticationPrincipal _User currentUser,
                                                    @PathVariable(name = "id")UUID programId){
         List<DepartmentResponse> response = departmentService.adminGetProgramDepartments(programId, currentUser);
@@ -100,7 +100,7 @@ public class DepartmentController {
                 .body(response);
     }
 
-    @GetMapping("/{id}/admin")
+    @GetMapping("/{id}/all")
     public ResponseEntity<?> adminGetDepartment(@AuthenticationPrincipal _User currentUser,
                                                 @PathVariable(name = "id") UUID departmentId){
         DepartmentResponse response = departmentService.adminGetDepartment(departmentId, currentUser);

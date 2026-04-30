@@ -106,7 +106,7 @@ public class DepartmentServiceImp implements DepartmentService {
 
     @Override
     public DepartmentResponse getDepartment(UUID departmentIid) {
-        Department department = departmentRepository.findByIdAndIsActiveTrue(departmentIid, true)
+        Department department = departmentRepository.findByIdAndIsActiveTrue(departmentIid)
                 .orElseThrow(()-> new ResponseStatusException(HttpStatus.NOT_FOUND, "department not found"));
 
         return DepartmentMapper.toDto(department);

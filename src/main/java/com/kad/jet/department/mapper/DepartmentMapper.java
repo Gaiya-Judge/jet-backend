@@ -11,6 +11,7 @@ public class DepartmentMapper {
                 .department_name(department.getName())
                 .createdAt(department.getCreatedAt())
                 .departmentId(department.getId())
+                .hodName(department.getHod().getFullName())
                 .hod_id(department.getHod() != null ?
                         department.getHod().getId() : null)
                 .is_active(department.getIsActive())
