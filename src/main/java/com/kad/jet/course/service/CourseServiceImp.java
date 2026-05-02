@@ -3,14 +3,12 @@ package com.kad.jet.course.service;
 import com.kad.jet.course.dto.*;
 import com.kad.jet.course.model.Course;
 import com.kad.jet.course.repository.CourseRepository;
-import com.kad.jet.course.repository.PrerequisiteRepository;
 import com.kad.jet.department.repository.DepartmentRepository;
 import com.kad.jet.user.model.UserRole;
 import com.kad.jet.user.model._User;
 import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.autoconfigure.data.web.SpringDataWebProperties;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -27,7 +25,6 @@ import java.util.UUID;
 public class CourseServiceImp implements CourseService {
 
     private final CourseRepository courseRepository;
-    private final PrerequisiteRepository prerequisiteRepository;
     private final DepartmentRepository departmentRepository;
 
     private static final List<Integer> VALID_LEVELS =
@@ -159,23 +156,6 @@ public class CourseServiceImp implements CourseService {
         course.setIsActive(false);
         courseRepository.save(course);
     }
-
-    @Override
-    public PrerequisiteResponse addPrerequisite(UUID courseId, PrerequisiteRequest request, _User currentUser) {
-        return null;
-    }
-
-    @Override
-    public void removePrerequisite(UUID courseId, UUID requiredCourseId, _User currentUser) {
-
-    }
-
-    @Override
-    public List<PrerequisiteResponse> getPrerequisites(UUID courseId) {
-        return List.of();
-    }
-
-
 
 
     private CourseResponse toResponse(Course course){

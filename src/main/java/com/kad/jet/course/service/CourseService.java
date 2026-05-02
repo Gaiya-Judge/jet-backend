@@ -26,9 +26,4 @@ public interface CourseService {
 
     void deleteCourse(UUID id, _User currentUser);
 
-    PrerequisiteResponse addPrerequisite(UUID courseId, PrerequisiteRequest request, _User currentUser);
-
-    void removePrerequisite(UUID courseId, UUID requiredCourseId, _User currentUser);
-
-    List<PrerequisiteResponse> getPrerequisites(UUID courseId);
 }
