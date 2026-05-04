@@ -62,6 +62,7 @@ public class CourseServiceImp implements CourseService {
                 .title(request.getTitle())
                 .isActive(true)
                 .build();
+        courseRepository.save(course);
 
         return toResponse(course);
 
@@ -133,6 +134,10 @@ public class CourseServiceImp implements CourseService {
         }
         if (request.getCourseType() != null) {
             course.setCourseType(request.getCourseType());
+        }
+
+        if (request.getCourseCode() != null){
+            course.setCourseCode(request.getCourseCode());
         }
         if (request.getLevel() != null) {
             if (!VALID_LEVELS.contains(request.getLevel())) {

@@ -5,6 +5,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -32,11 +33,11 @@ public class Semester {
     @Enumerated(EnumType.STRING)
     private SemesterStatus status;
 
-    private LocalDateTime addDropStart;
+    private LocalDate addDropStart;
 
-    private LocalDateTime addDropEnd;
+    private LocalDate addDropEnd;
 
-    private LocalDateTime registrationOpen;
+    private LocalDate registrationOpen;
 
     @CreationTimestamp
     @Column(nullable = false)

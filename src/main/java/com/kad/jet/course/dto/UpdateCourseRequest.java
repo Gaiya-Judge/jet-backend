@@ -7,6 +7,8 @@ import lombok.Data;
 @Data
 public class UpdateCourseRequest {
 
+    private String courseCode;
+
     private String title;
 
     @Min(value = 1, message = "Credit units must be at least 1")

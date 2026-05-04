@@ -80,6 +80,7 @@ public class CourseController {
     public ResponseEntity<?> deleteCourse(@PathVariable UUID id,
                                           @AuthenticationPrincipal _User currentUser) {
         courseService.deleteCourse(id, currentUser);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.status(HttpStatus.OK)
+                .body("deleted");
     }
 }
