@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -90,6 +91,8 @@ public class SemesterServiceImp implements SemesterService {
         }
 
         semester.setAcademyYear(updateSemester.getAcademyYear());
+
+        semesterRepository.save(semester);
         return SemesterMapper.toDto(semester);
     }
 
@@ -121,6 +124,7 @@ public class SemesterServiceImp implements SemesterService {
                     });
         }
 
+        semester.setStatus(semesterStatusRequest.getStatus());
         semesterRepository.save(semester);
 
         return SemesterMapper.toDto(semester);
