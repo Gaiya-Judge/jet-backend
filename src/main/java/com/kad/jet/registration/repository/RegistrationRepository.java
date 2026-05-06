@@ -2,6 +2,8 @@ package com.kad.jet.registration.repository;
 
 import com.kad.jet.registration.model.Registration;
 import com.kad.jet.registration.model.RegistrationStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -25,4 +27,7 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
             UUID studentId,
             UUID semesterId
     );
+
+
+    Page<Registration> findAll(Pageable pageable);
 }
