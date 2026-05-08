@@ -1,12 +1,12 @@
 package com.kad.jet.finance.repository;
 
 import com.kad.jet.finance.model.TuitionAccount;
-import org.hibernate.validator.constraints.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public interface TuitionRepository extends JpaRepository<TuitionAccount, UUID> {

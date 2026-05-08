@@ -1,6 +1,7 @@
 package com.kad.jet.course.dto;
 
 import com.kad.jet.course.model.CourseType;
+import com.kad.jet.semester.model.SemesterType;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -23,6 +24,9 @@ public class CreateCourseRequest {
 
     @NotNull(message = "Course type is required")
     private CourseType courseType;
+
+    @NotNull(message = "Semester type is required")
+    private SemesterType semesterType;
 
     @NotNull(message = "Department is required")
     private UUID departmentId;

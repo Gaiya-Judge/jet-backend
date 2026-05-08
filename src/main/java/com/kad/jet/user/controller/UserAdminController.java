@@ -26,6 +26,6 @@ public class UserAdminController {
         UserResponse response = userAuthService.userAccountCreation(currentUser, request);
 
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(request);
+                .body(response);
     }
 }

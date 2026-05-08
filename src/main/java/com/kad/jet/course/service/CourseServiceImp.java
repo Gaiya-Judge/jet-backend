@@ -4,6 +4,7 @@ import com.kad.jet.course.dto.*;
 import com.kad.jet.course.model.Course;
 import com.kad.jet.course.repository.CourseRepository;
 import com.kad.jet.department.repository.DepartmentRepository;
+import com.kad.jet.semester.model.SemesterType;
 import com.kad.jet.user.model.UserRole;
 import com.kad.jet.user.model._User;
 import com.kad.jet.user.utility.RoleChecker;
@@ -47,6 +48,14 @@ public class CourseServiceImp implements CourseService {
                     "course code already exists " + request.getCourseCode());
         }
 
+        // Cannot assign a course to SUMMER semester
+        if (request.getSemesterType() == SemesterType.SUMMER) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "courses cannot be assigned to SUMMER semester. " +
+                            "summer is only for carryover courses");
+        }
+
         var department = departmentRepository.findById(request.getDepartmentId())
                 .orElseThrow(()-> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "department not found"));
@@ -58,6 +67,7 @@ public class CourseServiceImp implements CourseService {
                 .createdAt(LocalDateTime.now())
                 .creditUnits(request.getCreditUnits())
                 .department(department)
+                .semesterType(request.getSemesterType())
                 .level(request.getLevel())
                 .title(request.getTitle())
                 .isActive(true)
@@ -173,6 +183,7 @@ public class CourseServiceImp implements CourseService {
                 .isActive(course.getIsActive())
                 .departmentId(course.getDepartment().getId())
                 .createdAt(course.getCreatedAt())
+                .semesterType(course.getSemesterType())
                 .courseCode(course.getCourseCode())
                 .creditUnits(course.getCreditUnits())
                 .departmentName(course.getDepartment().getName())

@@ -1,5 +1,6 @@
 package com.kad.jet.registration.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.kad.jet.registration.model.RegistrationStatus;
 import lombok.Builder;
 import lombok.Data;
@@ -10,6 +11,7 @@ import java.util.UUID;
 
 @Data
 @Builder
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class RegistrationResponse {
 
     private UUID id;

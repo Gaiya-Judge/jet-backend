@@ -1,6 +1,7 @@
 package com.kad.jet.course.model;
 
 import com.kad.jet.department.model.Department;
+import com.kad.jet.semester.model.SemesterType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -40,6 +41,10 @@ public class Course {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
     private Department department;
+
+    @Enumerated(EnumType.STRING)
+   // @Column(nullable = false)
+    private SemesterType semesterType;
 
     @Column(nullable = false)
     private Boolean isActive = true;
