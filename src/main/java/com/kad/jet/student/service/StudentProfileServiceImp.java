@@ -1,5 +1,9 @@
 package com.kad.jet.student.service;
 
+import com.kad.jet.department.model.Department;
+import com.kad.jet.department.repository.DepartmentRepository;
+import com.kad.jet.program.model.Program;
+import com.kad.jet.program.repository.ProgramRepository;
 import com.kad.jet.student.dto.StudentAccountCreationRequest;
 import com.kad.jet.student.dto.StudentProfileResponse;
 import com.kad.jet.student.mapper.StudentProfileMapper;
@@ -26,6 +30,8 @@ public class StudentProfileServiceImp implements StudentProfileService {
     private final StudentProfileRepository studentProfileRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserRepository userRepository;
+    private final ProgramRepository programRepository;
+    private final DepartmentRepository departmentRepository;
 
     @Transactional
     @Override
@@ -40,6 +46,22 @@ public class StudentProfileServiceImp implements StudentProfileService {
         if (studentProfile.isPresent()){
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "student already exits");
         }
+
+        Program program = programRepository.findById(request.getProgramId())
+                .orElseThrow(()-> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "program not found for id " +
+                        request.getProgramId()));
+
+        Department department = departmentRepository.findById(request.getDepartmentId())
+                .orElseThrow(()-> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "department not found for id " +
+                        request.getDepartmentId()));
+
+        if (!department.getProgram().getId().equals(program.getId())){
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "department does not belong to the selected program");
+        }
+
         //create new user
 
         _User newUser = _User
@@ -61,6 +83,8 @@ public class StudentProfileServiceImp implements StudentProfileService {
                 .matricNumber(request.getMatricNumber())
                 .user(savedNewUser)
                 .level(request.getLevel())
+                .program(program)
+                .department(department)
                 .enrollmentYear(request.getEnrollmentYear())
                 .createdAt(LocalDateTime.now())
                 .build();

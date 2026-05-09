@@ -21,6 +21,7 @@ public class CourseResponse {
     private String departmentName;
     private SemesterType semesterType;
     private Integer level;
+    private Boolean isDepartmentRestricted;
     private Boolean isActive;
     private LocalDateTime createdAt;
 }

@@ -33,4 +33,7 @@ public class CreateCourseRequest {
 
     @NotNull(message = "Level is required")
     private Integer level;
+
+    @NotNull(message = "isDepartmentRestricted is required")
+    private Boolean isDepartmentRestricted = false;
 }

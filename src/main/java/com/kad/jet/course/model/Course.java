@@ -43,8 +43,11 @@ public class Course {
     private Department department;
 
     @Enumerated(EnumType.STRING)
-   // @Column(nullable = false)
+    @Column(nullable = false)
     private SemesterType semesterType;
+
+    @Column(nullable = false)
+    private Boolean isDepartmentRestricted = false;
 
     @Column(nullable = false)
     private Boolean isActive = true;

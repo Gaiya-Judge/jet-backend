@@ -17,4 +17,6 @@ public class UpdateCourseRequest {
     private CourseType courseType;
 
     private Integer level;
+
+    private Boolean isDepartmentRestricted;
 }

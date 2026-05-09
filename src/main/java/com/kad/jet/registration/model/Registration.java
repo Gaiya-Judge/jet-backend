@@ -35,8 +35,8 @@ public class Registration {
     @Column(nullable = false)
     private RegistrationStatus status;
 
-    @Column(nullable = false)
-    private Integer totalCreditUnit = 0;
+    @Column(nullable = false, name = "total_credit_unit")
+    private Integer totalCreditUnits = 0;
 
     private LocalDateTime submittedAt;
 

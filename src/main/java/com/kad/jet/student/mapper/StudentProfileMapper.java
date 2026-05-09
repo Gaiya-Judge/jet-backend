@@ -21,6 +21,10 @@ public class StudentProfileMapper {
                 .createdAt(studentProfile.getCreatedAt())
                 .enrollmentYear(studentProfile.getEnrollmentYear())
                 .matricNumber(studentProfile.getMatricNumber())
+                .departmentId(studentProfile.getDepartment().getId())
+                .departmentName(studentProfile.getDepartment().getName())
+                .programId(studentProfile.getProgram().getId())
+                .programName(studentProfile.getProgram().getName())
                 .userResponse(UserResponse
                         .builder()
                         .userRole(user.getUserRole().name())

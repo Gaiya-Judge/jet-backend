@@ -1,6 +1,5 @@
 package com.kad.jet.registration.service;
 
-import com.kad.jet.course.model.Course;
 import com.kad.jet.course.repository.CourseRepository;
 import com.kad.jet.finance.repository.AdminChargeRepository;
 import com.kad.jet.finance.repository.FeeStructureRepository;
@@ -16,7 +15,6 @@ import com.kad.jet.registration.repository.RegistrationItemRepository;
 import com.kad.jet.registration.repository.RegistrationRepository;
 import com.kad.jet.semester.model.Semester;
 import com.kad.jet.semester.model.SemesterStatus;
-import com.kad.jet.semester.model.SemesterType;
 import com.kad.jet.semester.repository.SemesterRepository;
 import com.kad.jet.student.model.StudentGrade;
 import com.kad.jet.student.model.StudentProfile;
@@ -70,7 +68,6 @@ public class RegistrationServiceImp implements RegistrationService{
 
         _User student = resolveStudent(request, currentUser, isAdmin);
 
-        System.out.println("before admin assist check");
         if (isAdmin && (request.getAssistReason() == null
                 || request.getAssistReason().isBlank())) {
             throw new ResponseStatusException(
@@ -79,14 +76,12 @@ public class RegistrationServiceImp implements RegistrationService{
                             "on behalf of a student");
         }
 
-        System.out.println("before semester active check");
         Semester activeSemester = semesterRepository
                 .findByStatus(SemesterStatus.ACTIVE)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
                         "no active semester. registration is closed"));
 
-        System.out.println("checking if student id and semester id already exits");
         if (registrationRepository.existsByStudentIdAndSemesterId(
                 student.getId(), activeSemester.getId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -94,15 +89,13 @@ public class RegistrationServiceImp implements RegistrationService{
                             "for this semester");
         }
 
-        System.out.println("before checking out standing balance");
         checkOutstandingBalance(student.getId());
 
-        System.out.println("before persisting data into db");
         Registration registration = Registration.builder()
                 .student(student)
                 .semester(activeSemester)
                 .status(RegistrationStatus.DRAFT)
-                .totalCreditUnit(0)
+                .totalCreditUnits(0)
                 .assistedBy(isAdmin ? currentUser : null)
                 .assistReason(isAdmin
                         ? request.getAssistReason() : null)
@@ -142,89 +135,7 @@ public class RegistrationServiceImp implements RegistrationService{
     @Override
     @Transactional
     public RegistrationResponse addCourse(_User currentUser, UUID registrationId, AddCourseRequest request) {
-
-        if (!RoleChecker.hasAnyRole(currentUser,
-                UserRole.STUDENT, UserRole.IT_ADMIN,
-                UserRole.SUPER_ADMIN)) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
-        }
-
-        boolean isAdmin = RoleChecker.hasAnyRole(currentUser,
-                UserRole.IT_ADMIN, UserRole.SUPER_ADMIN);
-
-
-        if (isAdmin && (request.getAssistReason() == null
-                || request.getAssistReason().isBlank())) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "assist reason is required");
-        }
-
-        Registration registration = findById(registrationId);
-
-        if (registration.getStatus() != RegistrationStatus.DRAFT) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "only DRAFT registrations can be modified. " +
-                            "current status: " + registration.getStatus());
-        }
-
-        Course course = courseRepository
-                .findById(request.getCourseId())
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "course not found"));
-
-        StudentProfile studentProfile = studentProfileRepository
-                .findById(registration.getStudent().getId())
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "student profile not found"));
-
-        if (registration.getSemester().getSemesterType() != SemesterType.SUMMER) {
-
-            if (course.getSemesterType() != registration.getSemester().getSemesterType()) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "course " + course.getCourseCode() +
-                                " belongs to " + course.getSemesterType() +
-                                " semester and cannot be added to a " +
-                                registration.getSemester().getSemesterType() +
-                                " semester registration");
-            }
-        }
-
-        if (!course.getLevel().equals(studentProfile.getLevel())) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "course level " + course.getLevel() +
-                            " does not match student level " +
-                            studentProfile.getLevel());
-        }
-
-        if (registrationItemRepository
-                .existsByRegistrationIdAndCourseId(
-                        registrationId, course.getId())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "course already added to this registration");
-        }
-
-        RegistrationItem item = RegistrationItem.builder()
-                .registration(registration)
-                .course(course)
-                .isCarryOver(false)
-                .isDroppable(true)
-                .build();
-
-        registrationItemRepository.save(item);
-
-        registration.setTotalCreditUnit(
-                registration.getTotalCreditUnit() + course.getCreditUnits());
-
-        registrationRepository.save(registration);
-
-        return buildResponse(registration);
-
+        return null;
     }
 
     @Override
@@ -350,8 +261,8 @@ public class RegistrationServiceImp implements RegistrationService{
                     .getCourse().getCreditUnits();
         }
 
-        registration.setTotalCreditUnit(
-                registration.getTotalCreditUnit()
+        registration.setTotalCreditUnits(
+                registration.getTotalCreditUnits()
                         + totalCarryoverUnits);
         registrationRepository.save(registration);
     }
@@ -359,7 +270,7 @@ public class RegistrationServiceImp implements RegistrationService{
     private RegistrationItemResponse toItemResponse(
             RegistrationItem item) {
         return RegistrationItemResponse.builder()
-                .id(item.getId())
+                .registrationItemId(item.getId())
                 .courseId(item.getCourse().getId())
                 .courseCode(item.getCourse().getCourseCode())
                 .courseTitle(item.getCourse().getTitle())

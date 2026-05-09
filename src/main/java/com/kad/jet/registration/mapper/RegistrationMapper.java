@@ -22,7 +22,7 @@ public class RegistrationMapper {
                 .semesterType(registration.getSemester()
                         .getSemesterType().name())
                 .status(registration.getStatus())
-                .totalCreditUnits(registration.getTotalCreditUnit())
+                .totalCreditUnits(registration.getTotalCreditUnits())
                 .submittedAt(registration.getSubmittedAt())
                 .deanReviewedAt(registration.getDeanReviewAt())
                 .deanRemarks(registration.getDeanRemark())
@@ -41,7 +41,7 @@ public class RegistrationMapper {
     public static RegistrationItemResponse toItemDto(
             RegistrationItem item) {
         return RegistrationItemResponse.builder()
-                .id(item.getId())
+                .registrationItemId(item.getId())
                 .courseId(item.getCourse().getId())
                 .courseCode(item.getCourse().getCourseCode())
                 .courseTitle(item.getCourse().getTitle())

@@ -69,6 +69,7 @@ public class CourseServiceImp implements CourseService {
                 .department(department)
                 .semesterType(request.getSemesterType())
                 .level(request.getLevel())
+                .isDepartmentRestricted(request.getIsDepartmentRestricted())
                 .title(request.getTitle())
                 .isActive(true)
                 .build();
@@ -149,6 +150,12 @@ public class CourseServiceImp implements CourseService {
         if (request.getCourseCode() != null){
             course.setCourseCode(request.getCourseCode());
         }
+
+        if (request.getIsDepartmentRestricted() != null) {
+            course.setIsDepartmentRestricted(
+                    request.getIsDepartmentRestricted());
+        }
+
         if (request.getLevel() != null) {
             if (!VALID_LEVELS.contains(request.getLevel())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -185,6 +192,7 @@ public class CourseServiceImp implements CourseService {
                 .createdAt(course.getCreatedAt())
                 .semesterType(course.getSemesterType())
                 .courseCode(course.getCourseCode())
+                .isDepartmentRestricted(course.getIsDepartmentRestricted())
                 .creditUnits(course.getCreditUnits())
                 .departmentName(course.getDepartment().getName())
                 .build();
