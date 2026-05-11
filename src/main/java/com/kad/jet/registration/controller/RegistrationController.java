@@ -29,7 +29,6 @@ public class RegistrationController {
             @AuthenticationPrincipal _User currentUser,
             @RequestBody(required = false) CreateRegistrationRequest request) {
 
-        System.out.println("inside the controller");
         RegistrationResponse response =
                 registrationService.createDraft(currentUser, request);
 
@@ -100,6 +99,20 @@ public class RegistrationController {
         return ResponseEntity.ok(response);
     }
 
+
+    @PostMapping("/{id}/submit")
+    public ResponseEntity<?> submitRegistration(
+            @AuthenticationPrincipal _User currentUser,
+            @PathVariable UUID id,
+            @RequestBody(required = false) SubmitRegistrationRequest request) {
+
+        RegistrationResponse response =
+                registrationService
+                        .submitRegistration(currentUser, id, request);
+
+        return ResponseEntity.ok(response);
+    }
+
     @DeleteMapping("/{id}/courses/{courseId}")
     public ResponseEntity<?> removeCourse(
             @AuthenticationPrincipal _User currentUser,
@@ -129,7 +142,7 @@ public class RegistrationController {
     public ResponseEntity<?> approveRegistration(
             @AuthenticationPrincipal _User currentUser,
             @PathVariable UUID id,
-            @RequestBody DeanReviewRequest request) {
+            @RequestBody(required = false) DeanReviewRequest request) {
 
         RegistrationResponse response =
                 registrationService

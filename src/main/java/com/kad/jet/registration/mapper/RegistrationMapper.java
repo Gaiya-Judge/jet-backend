@@ -25,7 +25,8 @@ public class RegistrationMapper {
                 .totalCreditUnits(registration.getTotalCreditUnits())
                 .submittedAt(registration.getSubmittedAt())
                 .deanReviewedAt(registration.getDeanReviewAt())
-                .deanRemarks(registration.getDeanRemark())
+                .deanRemarks(registration.getDeanRemark() != null ? registration.getDeanRemark()
+                        : null)
                 .assistedBy(registration.getAssistedBy() != null
                         ? registration.getAssistedBy().getId()
                         : null)

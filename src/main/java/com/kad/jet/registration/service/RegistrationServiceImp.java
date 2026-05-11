@@ -337,6 +337,7 @@ public class RegistrationServiceImp implements RegistrationService{
     @Override
     @Transactional
     public RegistrationResponse approveRegistration(_User currentUser, UUID registrationId, DeanReviewRequest request) {
+        System.out.println("inside service layer for approve registration");
         if (!RoleChecker.is_dean(currentUser)) {
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED, "unauthorized request");
@@ -344,6 +345,7 @@ public class RegistrationServiceImp implements RegistrationService{
 
         Registration registration = findById(registrationId);
 
+        System.out.println("after checking if registration exists");
         if (registration.getStatus() !=
                 RegistrationStatus.PENDING_DEAN) {
             throw new ResponseStatusException(
@@ -351,10 +353,15 @@ public class RegistrationServiceImp implements RegistrationService{
                     "only PENDING_DEAN registrations can be approved");
         }
 
+        System.out.println("before updating registration");
         registration.setStatus(RegistrationStatus.APPROVED);
         registration.setDeanReviewAt(LocalDateTime.now());
-        registration.setDeanRemark(request.getRemarks());
 
+        if (request != null && request.getRemarks() != null){
+            registration.setDeanRemark(request.getRemarks());
+        }
+
+        System.out.println("after updating registration");
         registrationRepository.save(registration);
 
         // Auto create tuition account in same transaction
@@ -833,11 +840,11 @@ public class RegistrationServiceImp implements RegistrationService{
     }
 
     private int getMaxCreditUnits() {
-        return 24;
+        return 18;
     }
 
     private int getMinCreditUnits() {
-        return 9;
+        return 2;
     }
 
     private void validateCreditUnitLimits(Integer totalCreditUnits) {
