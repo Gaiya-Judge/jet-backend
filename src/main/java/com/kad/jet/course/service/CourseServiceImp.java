@@ -34,6 +34,9 @@ public class CourseServiceImp implements CourseService {
     @Transactional
     @Override
     public CourseResponse createCourse(CreateCourseRequest request, _User currentUser) {
+
+        System.out.println("department id " + request.getDepartmentId());
+
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.SUPER_ADMIN, UserRole.HOD)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
         }
@@ -59,6 +62,12 @@ public class CourseServiceImp implements CourseService {
         var department = departmentRepository.findById(request.getDepartmentId())
                 .orElseThrow(()-> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "department not found"));
+
+        if (currentUser.getUserRole() == UserRole.HOD &&
+                !currentUser.equals(department.getHod())){
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                    "you are not allowed to add course to another department");
+        }
 
         Course course = Course
                 .builder()

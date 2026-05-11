@@ -33,4 +33,6 @@ public interface RegistrationService {
     RegistrationResponse rejectRegistration(_User currentUser, UUID registrationId, DeanReviewRequest request);
 
     TuitionEstimateResponse getTuitionEstimate(_User currentUser, UUID registrationId);
+
+    BulkAddCourseResponse addCourses(_User currentUser, UUID registrationId, BulkAddCourseRequest request);
 }
