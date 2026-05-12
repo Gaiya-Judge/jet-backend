@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: jet
+
+paystack:
+  secret-key: ${PAYSTACK_SECRET_KEY}
+  webhook-secret: ${PAYSTACK_WEBHOOK_SECRET}
