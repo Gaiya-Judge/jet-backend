@@ -6,7 +6,7 @@ import com.kad.jet.finance.model.*;
 import com.kad.jet.finance.repository.AdminChargeRepository;
 import com.kad.jet.finance.repository.FeeStructureRepository;
 import com.kad.jet.finance.repository.StudentGradeRepository;
-import com.kad.jet.finance.repository.TuitionRepository;
+import com.kad.jet.finance.repository.TuitionAccountRepository;
 import com.kad.jet.registration.dto.*;
 import com.kad.jet.registration.mapper.RegistrationMapper;
 import com.kad.jet.registration.model.Registration;
@@ -50,7 +50,7 @@ public class RegistrationServiceImp implements RegistrationService{
     private final SemesterRepository semesterRepository;
     private final StudentGradeRepository studentGradeRepository;
     private final StudentProfileRepository studentProfileRepository;
-    private final TuitionRepository tuitionRepository;
+    private final TuitionAccountRepository tuitionRepository;
     private final FeeStructureRepository feeStructureRepository;
     private final AdminChargeRepository adminChargeRepository;
     private final CreditBalanceRepository creditBalanceRepository;

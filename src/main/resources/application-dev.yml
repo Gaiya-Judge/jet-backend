@@ -29,5 +29,5 @@ admin:
   password: admin123
 
 paystack:
-  secret-key: sk_test_cfa51d4dfba92fa5c0a013188e92d4a6eeef1cc7
-  webhook-secret: your_webhook_secret_from_paystack_dashboard
+  secret-key: ${PAYSTACK_SECRET_KEY:sk_test_cfa51d4dfba92fa5c0a013188e92d4a6eeef1cc7}
+  base-url: https://api.paystack.co

@@ -9,7 +9,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface TuitionRepository extends JpaRepository<TuitionAccount, UUID> {
+public interface TuitionAccountRepository extends JpaRepository<TuitionAccount, UUID> {
 
     Optional<TuitionAccount> findByRegistrationId(UUID registrationId);
 
