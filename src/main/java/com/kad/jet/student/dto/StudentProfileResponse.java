@@ -19,4 +19,8 @@ public class StudentProfileResponse {
     private UserResponse userResponse;
     private UUID studentId;
     private LocalDateTime createdAt;
+    private String departmentName;
+    private UUID departmentId;
+    private String programName;
+    private UUID programId;
 }

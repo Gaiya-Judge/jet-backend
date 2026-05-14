@@ -4,6 +4,7 @@ import com.kad.jet.course.dto.*;
 import com.kad.jet.course.model.Course;
 import com.kad.jet.course.repository.CourseRepository;
 import com.kad.jet.department.repository.DepartmentRepository;
+import com.kad.jet.semester.model.SemesterType;
 import com.kad.jet.user.model.UserRole;
 import com.kad.jet.user.model._User;
 import com.kad.jet.user.utility.RoleChecker;
@@ -33,7 +34,10 @@ public class CourseServiceImp implements CourseService {
     @Transactional
     @Override
     public CourseResponse createCourse(CreateCourseRequest request, _User currentUser) {
-        if (!RoleChecker.hasAnyRole(currentUser, UserRole.SUPER_ADMIN, UserRole.HOD)) {
+
+        System.out.println("department id " + request.getDepartmentId());
+
+        if (!RoleChecker.hasAnyRole(currentUser, UserRole.SUPER_ADMIN, UserRole.HOD, UserRole.IT_ADMIN)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
         }
 
@@ -47,9 +51,23 @@ public class CourseServiceImp implements CourseService {
                     "course code already exists " + request.getCourseCode());
         }
 
+        // Cannot assign a course to SUMMER semester
+        if (request.getSemesterType() == SemesterType.SUMMER) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "courses cannot be assigned to SUMMER semester. " +
+                            "summer is only for carryover courses");
+        }
+
         var department = departmentRepository.findById(request.getDepartmentId())
                 .orElseThrow(()-> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "department not found"));
+
+        if (currentUser.getUserRole() == UserRole.HOD &&
+                !currentUser.equals(department.getHod())){
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                    "you are not allowed to add course to another department");
+        }
 
         Course course = Course
                 .builder()
@@ -58,7 +76,9 @@ public class CourseServiceImp implements CourseService {
                 .createdAt(LocalDateTime.now())
                 .creditUnits(request.getCreditUnits())
                 .department(department)
+                .semesterType(request.getSemesterType())
                 .level(request.getLevel())
+                .isDepartmentRestricted(request.getIsDepartmentRestricted())
                 .title(request.getTitle())
                 .isActive(true)
                 .build();
@@ -139,6 +159,12 @@ public class CourseServiceImp implements CourseService {
         if (request.getCourseCode() != null){
             course.setCourseCode(request.getCourseCode());
         }
+
+        if (request.getIsDepartmentRestricted() != null) {
+            course.setIsDepartmentRestricted(
+                    request.getIsDepartmentRestricted());
+        }
+
         if (request.getLevel() != null) {
             if (!VALID_LEVELS.contains(request.getLevel())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -173,7 +199,9 @@ public class CourseServiceImp implements CourseService {
                 .isActive(course.getIsActive())
                 .departmentId(course.getDepartment().getId())
                 .createdAt(course.getCreatedAt())
+                .semesterType(course.getSemesterType())
                 .courseCode(course.getCourseCode())
+                .isDepartmentRestricted(course.getIsDepartmentRestricted())
                 .creditUnits(course.getCreditUnits())
                 .departmentName(course.getDepartment().getName())
                 .build();

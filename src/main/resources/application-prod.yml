@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: jet
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+paystack:
+  secret-key: ${PAYSTACK_SECRET_KEY}
+  base-url: https://api.paystack.co

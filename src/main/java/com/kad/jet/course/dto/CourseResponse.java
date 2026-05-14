@@ -1,6 +1,7 @@
 package com.kad.jet.course.dto;
 
 import com.kad.jet.course.model.CourseType;
+import com.kad.jet.semester.model.SemesterType;
 import lombok.Builder;
 import lombok.Data;
 
@@ -18,7 +19,9 @@ public class CourseResponse {
     private CourseType courseType;
     private UUID departmentId;
     private String departmentName;
+    private SemesterType semesterType;
     private Integer level;
+    private Boolean isDepartmentRestricted;
     private Boolean isActive;
     private LocalDateTime createdAt;
 }

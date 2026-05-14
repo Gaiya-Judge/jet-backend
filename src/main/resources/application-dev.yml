@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: jet
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/jet_db
+    username: postgres
+    password: Groove.1
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+server:
+  port: 8080
+
+jwt:
+  secret: 404D635166546A576E5A7234753778214125442A472D4B6150645367566B5970
+  expiration-ms: 900000
+  refresh-expiration-ms: 604800000
+
+admin:
+  email: admin1@jet.com
+  password: admin123
+
+paystack:
+  secret-key: ${PAYSTACK_SECRET_KEY:sk_test_cfa51d4dfba92fa5c0a013188e92d4a6eeef1cc7}
+  base-url: https://api.paystack.co

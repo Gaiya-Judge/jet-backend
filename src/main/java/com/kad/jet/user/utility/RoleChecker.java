@@ -39,7 +39,7 @@ public class RoleChecker {
     }
 
     public static boolean hasAnyRole(_User user, UserRole... roles){
-        if (user == null && user.getUserRole() == null){
+        if (user == null || user.getUserRole() == null){
             return false;
         }
 

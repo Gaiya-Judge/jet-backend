@@ -19,7 +19,7 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
             UUID semesterId
     );
 
-    List<Registration> findByStatus(RegistrationStatus status);
+    Page<Registration> findByStatus(RegistrationStatus status, Pageable pageable);
 
     List<Registration> findByStudentId(UUID studentId);
 

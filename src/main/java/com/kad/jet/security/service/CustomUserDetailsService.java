@@ -1,5 +1,6 @@
 package com.kad.jet.security.service;
 
+import com.kad.jet.student.repository.StudentProfileRepository;
 import com.kad.jet.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -14,11 +15,22 @@ import org.springframework.web.server.ResponseStatusException;
 public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
+    private final StudentProfileRepository studentProfileRepository;
 
     @Override
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return (UserDetails) userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(()->
-                        new ResponseStatusException(HttpStatus.NOT_FOUND, "user not found"));
+    public UserDetails loadUserByUsername(String identifier) throws UsernameNotFoundException {
+
+        if (identifier.contains("@")) {
+            return userRepository.findByEmailIgnoreCase(identifier)
+                    .orElseThrow(() -> new UsernameNotFoundException(
+                            "User not found: " + identifier));
+        }
+
+        return studentProfileRepository
+                .findByMatricNumber(identifier)
+                .map(profile -> profile.getUser())
+                .orElseThrow(() -> new UsernameNotFoundException(
+                        "Student not found: " + identifier));
+
     }
 }
