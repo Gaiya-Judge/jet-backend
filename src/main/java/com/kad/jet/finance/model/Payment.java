@@ -22,6 +22,9 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Version
+    private Long version;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tuition_account_id", nullable = false)
     private TuitionAccount tuitionAccount;

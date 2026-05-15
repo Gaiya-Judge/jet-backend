@@ -25,6 +25,9 @@ public class TuitionAccount {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Version
+    private Long version;
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "registration_id", nullable = false, unique = true)
     private Registration registration;
