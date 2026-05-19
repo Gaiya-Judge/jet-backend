@@ -35,4 +35,8 @@ public interface RegistrationService {
     TuitionEstimateResponse getTuitionEstimate(_User currentUser, UUID registrationId);
 
     BulkAddCourseResponse addCourses(_User currentUser, UUID registrationId, BulkAddCourseRequest request);
+
+    AddDropResponse addCourseDuringAddDrop(_User currentUser, UUID registrationId, AddDropCourseRequest request);
+
+    AddDropResponse dropCourseDuringAddDrop(_User currentUser, UUID registrationId, UUID courseId, String assistReason);
 }

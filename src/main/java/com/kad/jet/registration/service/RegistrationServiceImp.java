@@ -1,5 +1,7 @@
 package com.kad.jet.registration.service;
 
+import com.kad.jet.config.SystemConfigKeys;
+import com.kad.jet.config.service.SystemConfigService;
 import com.kad.jet.course.model.Course;
 import com.kad.jet.course.repository.CourseRepository;
 import com.kad.jet.finance.model.*;
@@ -28,6 +30,7 @@ import com.kad.jet.user.repository.UserRepository;
 import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -36,10 +39,12 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RegistrationServiceImp implements RegistrationService{
@@ -55,6 +60,7 @@ public class RegistrationServiceImp implements RegistrationService{
     private final AdminChargeRepository adminChargeRepository;
     private final CreditBalanceRepository creditBalanceRepository;
     private final UserRepository userRepository;
+    private final SystemConfigService systemConfigService;
 
     @Override
     @Transactional
@@ -639,6 +645,106 @@ public class RegistrationServiceImp implements RegistrationService{
                 .build();
     }
 
+    @Override
+    public AddDropResponse addCourseDuringAddDrop(_User currentUser, UUID registrationId, AddDropCourseRequest request) {
+        if (!RoleChecker.hasAnyRole(currentUser,
+                UserRole.STUDENT, UserRole.IT_ADMIN,
+                UserRole.SUPER_ADMIN)) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+        }
+
+        boolean isAdmin = RoleChecker.hasAnyRole(currentUser,
+                UserRole.IT_ADMIN, UserRole.SUPER_ADMIN);
+
+        if (isAdmin && (request.getAssistReason() == null
+                || request.getAssistReason().isBlank())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "assist reason is required");
+        }
+
+        Registration registration = findById(registrationId);
+
+        // Registration must be APPROVED or COMPLETED
+        // Cannot add/drop on DRAFT or PENDING_DEAN
+        if (registration.getStatus() != RegistrationStatus.APPROVED &&
+                registration.getStatus() !=
+                        RegistrationStatus.COMPLETED) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "add/drop is only allowed on APPROVED or " +
+                            "COMPLETED registrations. current status: " +
+                            registration.getStatus());
+        }
+
+        // Check add/drop window is open
+        validateAddDropWindow(registration.getSemester());
+
+        Course course = courseRepository
+                .findById(request.getCourseId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "course not found"));
+
+        StudentProfile studentProfile = getStudentProfile(
+                registration.getStudent().getId());
+
+        // Run all course validations
+        // false = not a carryover so all checks apply
+        validateCourseForRegistration(
+                course, studentProfile, registration,
+                registrationId, false);
+
+        // Get tuition account before changes
+        TuitionAccount account = getTuitionAccount(registrationId);
+        BigDecimal previousTotalDue = account.getTotalDue();
+
+        // Add the course to registration
+        RegistrationItem item = RegistrationItem.builder()
+                .registration(registration)
+                .course(course)
+                .isCarryOver(false)
+                .isDroppable(true)
+                .build();
+
+        registrationItemRepository.save(item);
+
+        // Update total credit units
+        registration.setTotalCreditUnits(
+                registration.getTotalCreditUnits()
+                        + course.getCreditUnits());
+        registrationRepository.save(registration);
+
+        // Recalculate tuition — adding units increases the bill
+        BigDecimal additionalTuition = recalculateTuitionForAddDrop(
+                account, registration, studentProfile);
+
+        BigDecimal newTotalDue = account.getTotalDue();
+        BigDecimal difference = newTotalDue.subtract(previousTotalDue);
+
+        log.info("Course {} added during add/drop for " +
+                        "registration {}. Additional charge: ₦{}",
+                course.getCourseCode(),
+                registrationId,
+                difference);
+
+        return AddDropResponse.builder()
+                .registration(buildResponse(registration))
+                .previousTotalDue(previousTotalDue)
+                .newTotalDue(newTotalDue)
+                .difference(difference)
+                .message("course " + course.getCourseCode() +
+                        " added successfully. " +
+                        "additional payment of ₦" + difference +
+                        " is required.")
+                .build();
+    }
+
+    @Override
+    public AddDropResponse dropCourseDuringAddDrop(_User currentUser, UUID registrationId, UUID courseId, String assistReason) {
+        return null;
+    }
+
 
     private _User resolveStudent(CreateRegistrationRequest request, _User currentUser, boolean isAdmin) {
 
@@ -961,4 +1067,129 @@ public class RegistrationServiceImp implements RegistrationService{
                 .build();
     }
 
+    private void validateAddDropWindow(Semester semester) {
+        LocalDate today = LocalDate.now();
+
+        // Dean must have configured the window first
+        if (semester.getAddDropStart() == null ||
+                semester.getAddDropEnd() == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "add/drop window has not been configured " +
+                            "for this semester. contact the Dean.");
+        }
+
+        // Too early — window has not opened yet
+        if (today.isBefore(semester.getAddDropStart())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "add/drop window has not opened yet. " +
+                            "it opens on " + semester.getAddDropStart());
+        }
+
+        // Too late — window has closed
+        if (today.isAfter(semester.getAddDropEnd())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "add/drop window has closed. " +
+                            "it closed on " + semester.getAddDropEnd());
+        }
+    }
+
+    private BigDecimal recalculateTuitionForAddDrop(
+            TuitionAccount account,
+            Registration registration,
+            StudentProfile studentProfile) {
+
+        // Get current fee structure for this program/semester
+        FeeStructure feeStructure = feeStructureRepository
+                .findBySemesterIdAndProgramId(
+                        registration.getSemester().getId(),
+                        studentProfile.getProgram().getId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "fee structure not found for this semester"));
+
+        // Recalculate tuition based on NEW credit unit count
+        BigDecimal newTuitionAmount = feeStructure
+                .getCostPerCreditUnit()
+                .multiply(BigDecimal.valueOf(
+                        registration.getTotalCreditUnits()));
+
+        account.setTuitionAmount(newTuitionAmount);
+
+        // Recalculate total due
+        // total_due = tuition + admin_charges
+        //             - waiver_amount - credit_carried_forward
+        BigDecimal newTotalDue = newTuitionAmount
+                .add(account.getAdminChargesTotal())
+                .subtract(account.getWaiverAmount())
+                .subtract(account.getCreditCarriedForward());
+
+        if (newTotalDue.compareTo(BigDecimal.ZERO) < 0) {
+            newTotalDue = BigDecimal.ZERO;
+        }
+
+        account.setTotalDue(newTotalDue);
+
+        // Recalculate minimum payment
+        int minPercentage = systemConfigService.getIntValue(
+                SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
+
+        BigDecimal newMinimumPayment = newTotalDue
+                .multiply(BigDecimal.valueOf(minPercentage))
+                .divide(BigDecimal.valueOf(100))
+                .setScale(2, RoundingMode.CEILING);
+
+        account.setMinimumPayment(newMinimumPayment);
+
+        // Recalculate balance — what is still owed
+        BigDecimal newBalance = newTotalDue
+                .subtract(account.getTotalPaid());
+
+        if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
+            newBalance = BigDecimal.ZERO;
+        }
+
+        account.setBalance(newBalance);
+        account.setTuitionAccountStatus(TuitionAccountStatus.ADJUSTED);
+
+        tuitionRepository.save(account);
+
+        return newTotalDue;
+    }
+
+
+    private TuitionAccount getTuitionAccount(UUID registrationId) {
+        return tuitionRepository
+                .findByRegistrationId(registrationId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "tuition account not found for " +
+                                "this registration"));
+    }
+
+    private void createCreditBalance(
+            _User student,
+            Semester sourceSemester,
+            BigDecimal amount) {
+
+        CreditBalance creditBalance = CreditBalance.builder()
+                .student(student)
+                .sourceSemester(sourceSemester)
+                // targetSemester is null until next registration
+                // is created — applied automatically then
+                .amount(amount)
+                .isApplied(false)
+                .build();
+
+        creditBalanceRepository.save(creditBalance);
+
+        log.info("Credit balance of ₦{} created for student {} " +
+                        "from semester {}",
+                amount,
+                student.getId(),
+                sourceSemester.getId());
+
+    }
 }

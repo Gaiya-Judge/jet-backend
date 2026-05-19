@@ -175,4 +175,31 @@ public class RegistrationController {
 
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/{id}/add-drop/add")
+    public ResponseEntity<?> addCourseDuringAddDrop(
+            @AuthenticationPrincipal _User currentUser,
+            @PathVariable UUID id,
+            @Valid @RequestBody AddDropCourseRequest request) {
+
+        AddDropResponse response =
+                registrationService.addCourseDuringAddDrop(
+                        currentUser, id, request);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{id}/add-drop/drop/{courseId}")
+    public ResponseEntity<?> dropCourseDuringAddDrop(
+            @AuthenticationPrincipal _User currentUser,
+            @PathVariable UUID id,
+            @PathVariable UUID courseId,
+            @RequestParam(required = false) String assistReason) {
+
+        AddDropResponse response =
+                registrationService.dropCourseDuringAddDrop(
+                        currentUser, id, courseId, assistReason);
+
+        return ResponseEntity.ok(response);
+    }
 }
