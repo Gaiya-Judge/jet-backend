@@ -32,6 +32,7 @@ public class PaystackClient {
                 .multiply(BigDecimal.valueOf(100))
                 .longValue();
 
+        //put all required body in the send request
         Map<String, Object> body = new HashMap<>();
         body.put("email", email);
         body.put("amount", amountInKobo);
@@ -50,6 +51,7 @@ public class PaystackClient {
                     new HttpEntity<>(body, buildHeaders()),
                     Map.class);
 
+            //getting response from paystack client
             Map<String, Object> responseBody = response.getBody();
 
             if (responseBody == null ||

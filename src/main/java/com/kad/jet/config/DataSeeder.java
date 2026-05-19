@@ -21,10 +21,10 @@ public class DataSeeder implements CommandLineRunner {
     private final PasswordEncoder passwordEncoder;
     private final SystemConfigRepository systemConfigRepository;
 
-    @Value("${superadmin.email}")
+    @Value("${admin.email}")
     private String superAdminEmail;
 
-    @Value("${superadmin.password}")
+    @Value("${admin.password}")
     private String superAdminPassword;
 
     @Override
