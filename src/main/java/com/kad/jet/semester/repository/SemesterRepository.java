@@ -22,4 +22,7 @@ public interface SemesterRepository extends JpaRepository<Semester, UUID> {
     );
 
     Page<Semester> findAll(Pageable pageable);
+
+    Optional<Semester> findByAcademyYearAndSemesterType(
+            String academicYear, SemesterType semesterType);
 }

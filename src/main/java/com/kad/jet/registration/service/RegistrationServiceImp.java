@@ -7,7 +7,7 @@ import com.kad.jet.course.repository.CourseRepository;
 import com.kad.jet.finance.model.*;
 import com.kad.jet.finance.repository.AdminChargeRepository;
 import com.kad.jet.finance.repository.FeeStructureRepository;
-import com.kad.jet.finance.repository.StudentGradeRepository;
+import com.kad.jet.student.repository.StudentGradeRepository;
 import com.kad.jet.finance.repository.TuitionAccountRepository;
 import com.kad.jet.registration.dto.*;
 import com.kad.jet.registration.mapper.RegistrationMapper;

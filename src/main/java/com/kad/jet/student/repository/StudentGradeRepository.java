@@ -1,4 +1,4 @@
-package com.kad.jet.finance.repository;
+package com.kad.jet.student.repository;
 
 import com.kad.jet.student.model.StudentGrade;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,4 +22,9 @@ public interface StudentGradeRepository extends JpaRepository<StudentGrade, UUID
             UUID studentId,
             UUID semesterId
     );
+
+    // Check if a grade already exists for this exact combination
+    // Used for duplicate detection during import
+    boolean existsByStudentIdAndCourseIdAndSemesterId(
+            UUID studentId, UUID courseId, UUID semesterId);
 }
