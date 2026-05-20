@@ -30,4 +30,7 @@ public interface RegistrationRepository extends JpaRepository<Registration, UUID
 
 
     Page<Registration> findAll(Pageable pageable);
+
+    // All registrations for a semester
+    List<Registration> findBySemesterId(UUID semesterId);
 }

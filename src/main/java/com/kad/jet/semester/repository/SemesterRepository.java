@@ -16,13 +16,13 @@ public interface SemesterRepository extends JpaRepository<Semester, UUID> {
 
     Optional<Semester> findByStatus(SemesterStatus status);
 
-    boolean existsByAcademyYearAndSemesterType(
+    boolean existsByAcademicYearAndSemesterType(
             String academicYear,
             SemesterType semesterType
     );
 
     Page<Semester> findAll(Pageable pageable);
 
-    Optional<Semester> findByAcademyYearAndSemesterType(
+    Optional<Semester> findByAcademicYearAndSemesterType(
             String academicYear, SemesterType semesterType);
 }

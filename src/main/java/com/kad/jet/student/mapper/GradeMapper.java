@@ -16,7 +16,7 @@ public class GradeMapper {
                 .courseCode(grade.getCourse().getCourseCode())
                 .courseTitle(grade.getCourse().getTitle())
                 .semesterId(grade.getSemester().getId())
-                .academicYear(grade.getSemester().getAcademyYear())
+                .academicYear(grade.getSemester().getAcademicYear())
                 .semesterType(grade.getSemester()
                         .getSemesterType().name())
                 .grade(grade.getGrade())

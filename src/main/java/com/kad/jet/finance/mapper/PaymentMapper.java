@@ -43,7 +43,7 @@ public class PaymentMapper {
                 .studentName(account.getStudent().getFullName())
                 .matricNumber(matricNumber)
                 .semesterId(account.getSemester().getId())
-                .academicYear(account.getSemester().getAcademyYear())
+                .academicYear(account.getSemester().getAcademicYear())
                 .tuitionAmount(account.getTuitionAmount())
                 .adminChargesTotal(account.getAdminChargesTotal())
                 .waiverAmount(account.getWaiverAmount())

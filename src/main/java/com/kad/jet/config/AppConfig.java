@@ -13,8 +13,8 @@ public class AppConfig {
         return new RestTemplate();
     }
 
-    @Bean
-    public ObjectMapper objectMapper(){
-        return new ObjectMapper();
-    }
+//    @Bean
+//    public ObjectMapper objectMapper(){
+//        return new ObjectMapper();
+//    }
 }

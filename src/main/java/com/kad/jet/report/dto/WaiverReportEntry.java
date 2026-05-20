@@ -1,0 +1,27 @@
+package com.kad.jet.report.dto;
+
+import com.kad.jet.finance.model.WaiverType;
+import lombok.Builder;
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+@Data
+@Builder
+public class WaiverReportEntry {
+
+    private UUID waiverId;
+    private UUID studentId;
+    private String studentName;
+    private String matricNumber;
+    private String academicYear;
+    private String semesterType;
+    private WaiverType waiverType;
+    private BigDecimal value;
+    private BigDecimal computedAmount;
+    private String reason;
+    private String approvedByName;
+    private LocalDateTime approvedAt;
+}

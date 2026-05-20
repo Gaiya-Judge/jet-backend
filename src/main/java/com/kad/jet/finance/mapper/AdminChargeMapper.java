@@ -9,7 +9,7 @@ public class AdminChargeMapper {
         return AdminChargeResponse
                 .builder()
                 .id(adminCharge.getId())
-                .academicYear(adminCharge.getSemester().getAcademyYear())
+                .academicYear(adminCharge.getSemester().getAcademicYear())
                 .amount(adminCharge.getAmount())
                 .createdAt(adminCharge.getCreatedAt())
                 .name(adminCharge.getName())
