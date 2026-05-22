@@ -3,9 +3,9 @@ spring:
     name: jet
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/jet_db
-    username: postgres
-    password: Groove.1
+    url:  jdbc:postgresql://aws-1-eu-central-1.pooler.supabase.com:5432/postgres?sslmode=require
+    username: postgres.htbskjtazdxxbnbehgcj
+    password: BackendJudge12
     driver-class-name: org.postgresql.Driver
 
   jpa:

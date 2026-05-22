@@ -37,10 +37,10 @@ public class DataSeeder implements CommandLineRunner {
         if (userRepository.count() == 0) {
 
             _User superAdmin = _User.builder()
-                    .email("admin@jet.com")
+                    .email(superAdminEmail)
                     .fullName("Super Admin")
                     .password(passwordEncoder
-                            .encode("Admin@1234"))
+                            .encode(superAdminPassword))
                     .userRole(UserRole.SUPER_ADMIN)
                     .isActive(true)
                     .isBanned(false)
@@ -50,8 +50,8 @@ public class DataSeeder implements CommandLineRunner {
 
             log.info("================================================");
             log.info("Super Admin seeded successfully");
-            log.info("Email   : admin1@jet.com");
-            log.info("Password: Admin@1234");
+            log.info("Email   : {} ", superAdminEmail);
+            log.info("Password: {} ", superAdminPassword);
             log.info("Change this password immediately in production");
             log.info("================================================");
         }
