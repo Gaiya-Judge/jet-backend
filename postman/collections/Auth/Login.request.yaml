@@ -1,0 +1,33 @@
+$kind: http-request
+name: Login
+method: POST
+url: '{{baseUrl}}/api/user/auth/login'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "",
+      "password": ""
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      const response = pm.response.json();
+
+      if (pm.response.code === 200 && response.refreshToken && response.email) {
+          // Extract the name part before the @ in the email
+          const namePart = response.email.split('@')[0];
+
+          // Build variable name e.g. adminRefreshToken, deanRefreshToken, bursaryRefreshToken
+          const varName = namePart + 'RefreshToken';
+
+          // Save to environment
+          pm.environment.set(varName, response.refreshToken);
+
+          console.log(`Saved refresh token as: ${varName} = ${response.refreshToken}`);
+      }

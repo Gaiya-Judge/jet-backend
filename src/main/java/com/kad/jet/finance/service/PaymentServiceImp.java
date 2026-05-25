@@ -65,6 +65,7 @@ public class PaymentServiceImp implements PaymentService {
         TuitionAccount tuitionAccount = findTuitionAccount(
                 request.getTuitionAccountId());
 
+
         // Validate all business rules before calling Paystack
         validatePaymentRequest(currentUser,
                 tuitionAccount, request.getAmount());
@@ -366,8 +367,29 @@ public class PaymentServiceImp implements PaymentService {
 
         TuitionAccount account = payment.getTuitionAccount();
 
+        // Check if account is already fully paid
+        // If so do not apply any more payments
+        if (account.getTuitionAccountStatus() == TuitionAccountStatus.PAID) {
+            log.warn("Payment {} attempted on already PAID " +
+                            "tuition account {}. Ignoring.",
+                    payment.getId(),
+                    account.getId());
+            return;
+        }
+
         BigDecimal newTotalPaid = account.getTotalPaid()
                 .add(payment.getAmount());
+
+        // Total paid cannot exceed total due
+        // Cap it at total due
+        if (newTotalPaid.compareTo(account.getTotalDue()) > 0) {
+            log.warn("Payment {} would cause overpayment on " +
+                            "account {}. Capping at total due.",
+                    payment.getId(),
+                    account.getId());
+            newTotalPaid = account.getTotalDue();
+        }
+
         account.setTotalPaid(newTotalPaid);
 
         BigDecimal newBalance = account.getTotalDue()
@@ -571,6 +593,15 @@ public class PaymentServiceImp implements PaymentService {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "this tuition account is already fully paid");
+        }
+
+        // In validatePaymentRequest
+        // Check balance is actually greater than zero
+        if (account.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "this tuition account has no outstanding balance. " +
+                            "current balance is ₦" + account.getBalance());
         }
 
         // Cannot pay more than what is owed
