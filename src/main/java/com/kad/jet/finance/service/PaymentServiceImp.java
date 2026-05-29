@@ -23,7 +23,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -31,6 +30,7 @@ import org.springframework.web.server.ResponseStatusException;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
@@ -367,31 +367,26 @@ public class PaymentServiceImp implements PaymentService {
 
         TuitionAccount account = payment.getTuitionAccount();
 
-        // Check if account is already fully paid
-        // If so do not apply any more payments
+        // If already fully paid — this should not happen
+        // because validation prevents it at initiation
+        // but if a webhook arrives for an old payment
+        // after account is paid — log and ignore
         if (account.getTuitionAccountStatus() == TuitionAccountStatus.PAID) {
-            log.warn("Payment {} attempted on already PAID " +
-                            "tuition account {}. Ignoring.",
-                    payment.getId(),
-                    account.getId());
+            log.warn("Webhook arrived for already PAID account {}. " +
+                            "Reference: {}. No changes made.",
+                    account.getId(),
+                    payment.getPaystackReference());
             return;
         }
 
+        // totalPaid always reflects ACTUAL cash received
+        // Balance is derived — never cap totalPaid
         BigDecimal newTotalPaid = account.getTotalPaid()
                 .add(payment.getAmount());
 
-        // Total paid cannot exceed total due
-        // Cap it at total due
-        if (newTotalPaid.compareTo(account.getTotalDue()) > 0) {
-            log.warn("Payment {} would cause overpayment on " +
-                            "account {}. Capping at total due.",
-                    payment.getId(),
-                    account.getId());
-            newTotalPaid = account.getTotalDue();
-        }
-
         account.setTotalPaid(newTotalPaid);
 
+        // Balance derived — floors at zero
         BigDecimal newBalance = account.getTotalDue()
                 .subtract(newTotalPaid);
 
@@ -401,16 +396,25 @@ public class PaymentServiceImp implements PaymentService {
 
         account.setBalance(newBalance);
 
+        // Update status
         if (newBalance.compareTo(BigDecimal.ZERO) == 0) {
             account.setTuitionAccountStatus(TuitionAccountStatus.PAID);
-        } else if (newTotalPaid.compareTo(
-                account.getMinimumPayment()) >= 0) {
-            account.setTuitionAccountStatus(TuitionAccountStatus.PARTIAL);
+        } else {
+            int minPercentage = systemConfigService.getIntValue(
+                    SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
+
+            BigDecimal minimumThreshold = account.getTotalDue()
+                    .multiply(BigDecimal.valueOf(minPercentage))
+                    .divide(BigDecimal.valueOf(100))
+                    .setScale(2, RoundingMode.CEILING);
+
+            if (newTotalPaid.compareTo(minimumThreshold) >= 0) {
+                account.setTuitionAccountStatus(TuitionAccountStatus.PARTIAL);
+            }
         }
 
         tuitionAccountRepository.save(account);
 
-        // Complete registration when threshold is met
         if (account.getTuitionAccountStatus() == TuitionAccountStatus.PAID ||
                 account.getTuitionAccountStatus() ==
                         TuitionAccountStatus.PARTIAL) {
@@ -482,6 +486,7 @@ public class PaymentServiceImp implements PaymentService {
                 .status(PaymentStatus.PENDING)
                 .paystackReference(reference)
                 .initiatedAt(LocalDateTime.now())
+                .expiresAt(LocalDateTime.now().plusMinutes(30))
                 .build();
 
         paymentRepository.save(payment);
@@ -595,6 +600,23 @@ public class PaymentServiceImp implements PaymentService {
                     "this tuition account is already fully paid");
         }
 
+        BigDecimal pendingAmount = paymentRepository
+                .sumActivePendingAmounts(
+                        account.getId(),LocalDateTime.now());
+
+        // Available to pay = balance minus what is already
+        // in-flight as pending payments
+        BigDecimal availableBalance = account.getBalance()
+                .subtract(pendingAmount);
+
+        if (availableBalance.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "you have a payment currently being processed. " +
+                            "please wait for it to complete or try again " +
+                            "in 30 minutes if you did not complete the payment.");
+        }
+
         // In validatePaymentRequest
         // Check balance is actually greater than zero
         if (account.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
@@ -604,20 +626,19 @@ public class PaymentServiceImp implements PaymentService {
                             "current balance is ₦" + account.getBalance());
         }
 
-        // Cannot pay more than what is owed
-        if (amount.compareTo(account.getBalance()) > 0) {
+        // Amount cannot exceed available balance
+        if (amount.compareTo(availableBalance) > 0) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "payment amount ₦" + amount +
-                            " exceeds outstanding balance ₦" +
-                            account.getBalance());
+                            " exceeds available balance ₦" +
+                            availableBalance);
         }
 
-        // First payment must meet the configured minimum percentage
-        // If any payment has been made before — this check is skipped
-        // The remaining balance can be paid in any amount
+        // First payment — must meet the 70% minimum
         if (account.getTotalPaid()
-                .compareTo(BigDecimal.ZERO) == 0) {
+                .compareTo(BigDecimal.ZERO) == 0
+                && pendingAmount.compareTo(BigDecimal.ZERO) == 0) {
 
             int minPercentage = systemConfigService.getIntValue(
                     SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
@@ -628,11 +649,60 @@ public class PaymentServiceImp implements PaymentService {
                         HttpStatus.BAD_REQUEST,
                         "minimum first payment is ₦" +
                                 account.getMinimumPayment() +
-                                " (" + minPercentage + "% of total due ₦" +
+                                " (" + minPercentage +
+                                "% of total due ₦" +
                                 account.getTotalDue() + "). " +
                                 "you attempted to pay ₦" + amount);
             }
         }
+
+        // Subsequent payment — must pay exact remaining balance
+        // Business rule: remaining balance paid in full
+        // in one transaction
+        if (account.getTotalPaid()
+                .compareTo(BigDecimal.ZERO) > 0) {
+
+            if (amount.compareTo(account.getBalance()) != 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "remaining balance must be paid in full. " +
+                                "outstanding balance is ₦" +
+                                account.getBalance() +
+                                ". you attempted to pay ₦" + amount +
+                                ". contact the bursar if you need " +
+                                "special payment arrangements.");
+            }
+        }
+
+//        // Cannot pay more than what is owed
+//        if (amount.compareTo(account.getBalance()) > 0) {
+//            throw new ResponseStatusException(
+//                    HttpStatus.BAD_REQUEST,
+//                    "payment amount ₦" + amount +
+//                            " exceeds outstanding balance ₦" +
+//                            account.getBalance());
+//        }
+//
+//        // First payment must meet the configured minimum percentage
+//        // If any payment has been made before — this check is skipped
+//        // The remaining balance can be paid in any amount
+//        if (account.getTotalPaid()
+//                .compareTo(BigDecimal.ZERO) == 0) {
+//
+//            int minPercentage = systemConfigService.getIntValue(
+//                    SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
+//
+//            if (amount.compareTo(
+//                    account.getMinimumPayment()) < 0) {
+//                throw new ResponseStatusException(
+//                        HttpStatus.BAD_REQUEST,
+//                        "minimum first payment is ₦" +
+//                                account.getMinimumPayment() +
+//                                " (" + minPercentage + "% of total due ₦" +
+//                                account.getTotalDue() + "). " +
+//                                "you attempted to pay ₦" + amount);
+//            }
+//        }
     }
 
     private TuitionAccount findTuitionAccount(UUID id) {

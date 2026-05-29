@@ -56,6 +56,11 @@ public class Payment {
 
     private LocalDateTime initiatedAt;
 
+    //set for initiation payment to pay stack
+    //expires after 30mins
+    @Column(nullable = false)
+    private LocalDateTime expiresAt;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
