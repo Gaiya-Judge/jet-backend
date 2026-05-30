@@ -1,5 +1,6 @@
 package com.kad.jet.student.service;
 
+import com.kad.jet.student.dto.AcademicYearGradeResponse;
 import com.kad.jet.student.dto.GradeImportResponse;
 import com.kad.jet.student.dto.StudentGradeResponse;
 import com.kad.jet.student.model.GradeImportLog;
@@ -38,4 +39,17 @@ public interface GradeService {
      */
     GradeImportLog getImportLogById(
             _User currentUser, UUID importLogId);
+
+    // All grades for a student in a specific academic year
+    AcademicYearGradeResponse getGradesByAcademicYear(
+            _User currentUser,
+            UUID studentId,
+            String academicYear);
+
+    // Grades for a specific semester of a specific year
+    List<StudentGradeResponse> getGradesByYearAndSemester(
+            _User currentUser,
+            UUID studentId,
+            String academicYear,
+            String semesterType);
 }

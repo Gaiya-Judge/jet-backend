@@ -5,9 +5,7 @@ import com.kad.jet.course.repository.CourseRepository;
 import com.kad.jet.semester.model.Semester;
 import com.kad.jet.semester.model.SemesterType;
 import com.kad.jet.semester.repository.SemesterRepository;
-import com.kad.jet.student.dto.GradeImportError;
-import com.kad.jet.student.dto.GradeImportResponse;
-import com.kad.jet.student.dto.StudentGradeResponse;
+import com.kad.jet.student.dto.*;
 import com.kad.jet.student.model.GradeImportLog;
 import com.kad.jet.student.model.StudentGrade;
 import com.kad.jet.student.model.StudentProfile;
@@ -31,10 +29,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -233,6 +229,119 @@ public class GradeServiceImpl implements GradeService{
                         "import log not found"));
     }
 
+    @Override
+    public AcademicYearGradeResponse getGradesByAcademicYear(_User currentUser, UUID studentId, String academicYear) {
+
+        if (!RoleChecker.hasAnyRole(currentUser,
+                UserRole.STUDENT, UserRole.REGISTRAR,
+                UserRole.IT_ADMIN, UserRole.HOD,
+                UserRole.SUPER_ADMIN)) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+        }
+
+        if (RoleChecker.is_student(currentUser) &&
+                !currentUser.getId().equals(studentId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "you can only view your own grades");
+        }
+
+        StudentProfile profile = studentProfileRepository
+                .findById(studentId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "student not found"));
+
+        // Get all grades for this student in this academic year
+        List<StudentGrade> grades = studentGradeRepository
+                .findByStudentIdAndAcademicYear(
+                        studentId, academicYear);
+
+        if (grades.isEmpty()) {
+            return AcademicYearGradeResponse.builder()
+                    .studentName(profile.getUser().getFullName())
+                    .matricNumber(profile.getMatricNumber())
+                    .academicYear(academicYear)
+                    .semesters(List.of())
+                    .build();
+        }
+
+        // Group by semester type within this academic year
+        Map<String, List<StudentGrade>> grouped = grades.stream()
+                .collect(Collectors.groupingBy(
+                        g -> g.getSemester().getSemesterType().name(),
+                        java.util.LinkedHashMap::new,
+                        Collectors.toList()));
+
+        List<SemesterGradeGroup> semesterGroups = grouped
+                .entrySet()
+                .stream()
+                .map(entry -> {
+                    List<StudentGrade> semesterGrades =
+                            entry.getValue();
+
+                    int totalUnits = semesterGrades.stream()
+                            .mapToInt(g -> g.getCourse()
+                                    .getCreditUnits())
+                            .sum();
+
+                    return SemesterGradeGroup.builder()
+                            .academicYear(academicYear)
+                            .semesterType(entry.getKey())
+                            .totalCreditUnits(totalUnits)
+                            .grades(semesterGrades.stream()
+                                    .map(this::toGradeResponse)
+                                    .toList())
+                            .build();
+                })
+                .toList();
+
+        return AcademicYearGradeResponse.builder()
+                .studentName(profile.getUser().getFullName())
+                .matricNumber(profile.getMatricNumber())
+                .academicYear(academicYear)
+                .semesters(semesterGroups)
+                .build();
+    }
+
+    @Override
+    public List<StudentGradeResponse> getGradesByYearAndSemester(_User currentUser, UUID studentId, String academicYear, String semesterType) {
+
+        if (!RoleChecker.hasAnyRole(currentUser,
+                UserRole.STUDENT, UserRole.REGISTRAR,
+                UserRole.IT_ADMIN, UserRole.HOD,
+                UserRole.SUPER_ADMIN)) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+        }
+
+        if (RoleChecker.is_student(currentUser) &&
+                !currentUser.getId().equals(studentId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "you can only view your own grades");
+        }
+
+        // Validate semester type string
+        SemesterType type;
+        try {
+            type = SemesterType.valueOf(
+                    semesterType.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "invalid semester type '" + semesterType +
+                            "'. must be FIRST, SECOND, or SUMMER");
+        }
+
+        return studentGradeRepository
+                .findByStudentIdAndAcademicYearAndSemesterType(
+                        studentId, academicYear, type)
+                .stream()
+                .map(this::toGradeResponse)
+                .toList();
+    }
 
 
     /**

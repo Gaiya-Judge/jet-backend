@@ -1,5 +1,6 @@
 package com.kad.jet.student.controller;
 
+import com.kad.jet.student.dto.AcademicYearGradeResponse;
 import com.kad.jet.student.dto.GradeImportResponse;
 import com.kad.jet.student.dto.StudentGradeResponse;
 import com.kad.jet.student.model.GradeImportLog;
@@ -86,6 +87,36 @@ public class GradeController {
 
         GradeImportLog response =
                 gradeService.getImportLogById(currentUser, id);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/student/{studentId}/history")
+    public ResponseEntity<?> getGradesByAcademicYear(
+            @AuthenticationPrincipal _User currentUser,
+            @PathVariable UUID studentId,
+            @RequestParam String academicYear) {
+
+        AcademicYearGradeResponse response =
+                gradeService.getGradesByAcademicYear(
+                        currentUser, studentId, academicYear);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/student/{studentId}/semester-history")
+    public ResponseEntity<?> getGradesByYearAndSemester(
+            @AuthenticationPrincipal _User currentUser,
+            @PathVariable UUID studentId,
+            @RequestParam String academicYear,
+            @RequestParam String semesterType) {
+
+        List<StudentGradeResponse> response =
+                gradeService.getGradesByYearAndSemester(
+                        currentUser,
+                        studentId,
+                        academicYear,
+                        semesterType);
 
         return ResponseEntity.ok(response);
     }
