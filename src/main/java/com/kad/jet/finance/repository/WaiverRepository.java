@@ -7,23 +7,16 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface WaiverRepository extends JpaRepository<Waiver, UUID> {
 
-    // All waivers for a tuition account
-    // A tuition account can have multiple waivers
-    // e.g. scholarship + hardship waiver
-    List<Waiver> findByTuitionAccountId(UUID tuitionAccountId);
+    // One waiver per tuition account
+    Optional<Waiver> findByTuitionAccountId(UUID tuitionAccountId);
 
-    // All waivers — for the waiver report
-// Ordered by most recent first
+    boolean existsByTuitionAccountId(UUID tuitionAccountId);
+
     List<Waiver> findAllByOrderByApprovedAtDesc();
-
-    // Waivers for a specific semester
-    @Query("SELECT w FROM Waiver w " +
-            "WHERE w.tuitionAccount.semester.id = :semesterId")
-    List<Waiver> findBySemesterId(
-            @Param("semesterId") UUID semesterId);
 }

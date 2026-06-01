@@ -14,17 +14,17 @@ public class WaiverResponse {
 
     private UUID id;
     private UUID tuitionAccountId;
-    private WaiverType waiverType;
-    private BigDecimal value;
-    // The raw value — 20 for PERCENTAGE, 10000 for FIXED
-
-    private BigDecimal computedAmount;
-    // The actual Naira amount deducted from total due
-    // For PERCENTAGE: computedAmount = total_due × (value/100)
-    // For FIXED: computedAmount = value
-
+    private String studentName;
+    private String matricNumber;
+    private Integer allowedPaymentPercentage;
+    // e.g. 40
+    private BigDecimal reducedMinimumPayment;
+    // e.g. ₦56,400
+    private BigDecimal originalMinimumPayment;
+    // e.g. ₦98,700 — what it would have been without waiver
+    private BigDecimal totalDue;
+    // Unchanged — student still owes this full amount
     private String reason;
-    private UUID approvedBy;
     private String approvedByName;
     private LocalDateTime approvedAt;
 }

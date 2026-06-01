@@ -33,25 +33,24 @@ public class WaiverController {
                 .body(response);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<?> getWaiverById(
+    @GetMapping("/tuition-account/{tuitionAccountId}")
+    public ResponseEntity<?> getWaiverByTuitionAccount(
             @AuthenticationPrincipal _User currentUser,
-            @PathVariable UUID id) {
+            @PathVariable UUID tuitionAccountId) {
 
         WaiverResponse response =
-                waiverService.getWaiverById(currentUser, id);
+                waiverService.getWaiverByTuitionAccount(
+                        currentUser, tuitionAccountId);
 
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/tuition-account/{tuitionAccountId}")
-    public ResponseEntity<?> getWaiversByTuitionAccount(
-            @AuthenticationPrincipal _User currentUser,
-            @PathVariable UUID tuitionAccountId) {
+    @GetMapping
+    public ResponseEntity<?> getAllWaivers(
+            @AuthenticationPrincipal _User currentUser) {
 
         List<WaiverResponse> response =
-                waiverService.getWaiversByTuitionAccount(
-                        currentUser, tuitionAccountId);
+                waiverService.getAllWaivers(currentUser);
 
         return ResponseEntity.ok(response);
     }

@@ -9,11 +9,13 @@ import java.util.UUID;
 
 public interface WaiverService {
 
-    WaiverResponse applyWaiver(_User currentUser, CreateWaiverRequest request);
+    WaiverResponse applyWaiver(_User currentUser,
+                               CreateWaiverRequest request);
 
-    WaiverResponse getWaiverById(_User currentUser, UUID id);
+    WaiverResponse getWaiverByTuitionAccount(_User currentUser,
+                                             UUID tuitionAccountId);
 
-    List<WaiverResponse> getWaiversByTuitionAccount(_User currentUser, UUID tuitionAccountId);
+    List<WaiverResponse> getAllWaivers(_User currentUser);
 
-    void removeWaiver(_User currentUser, UUID id);
+    void removeWaiver(_User currentUser, UUID waiverId);
 }

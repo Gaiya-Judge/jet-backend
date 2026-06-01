@@ -204,32 +204,34 @@ public class ReportServiceImp implements ReportService {
     @Override
     public WaiverReport getWaiverReport(_User currentUser) {
 
-        if (!RoleChecker.hasAnyRole(currentUser,
-                UserRole.BURSAR, UserRole.ACCOUNTANT,
-                UserRole.SUPER_ADMIN)) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
-        }
+//        if (!RoleChecker.hasAnyRole(currentUser,
+//                UserRole.BURSAR, UserRole.ACCOUNTANT,
+//                UserRole.SUPER_ADMIN)) {
+//            throw new ResponseStatusException(
+//                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+//        }
+//
+//        List<Waiver> waivers = waiverRepository
+//                .findAllByOrderByApprovedAtDesc();
+//
+//        BigDecimal totalWaiverAmount = waivers.stream()
+//                .map(w -> computeWaiverAmount(
+//                        w.getWaiverType(),
+//                        w.getValue(),
+//                        w.getTuitionAccount().getTotalDue()))
+//                .reduce(BigDecimal.ZERO, BigDecimal::add);
+//
+//        List<WaiverReportEntry> entries = waivers.stream()
+//                .map(this::toWaiverEntry)
+//                .toList();
+//
+//        return WaiverReport.builder()
+//                .totalWaivers(waivers.size())
+//                .totalWaiverAmount(totalWaiverAmount)
+//                .entries(entries)
+//                .build();
 
-        List<Waiver> waivers = waiverRepository
-                .findAllByOrderByApprovedAtDesc();
-
-        BigDecimal totalWaiverAmount = waivers.stream()
-                .map(w -> computeWaiverAmount(
-                        w.getWaiverType(),
-                        w.getValue(),
-                        w.getTuitionAccount().getTotalDue()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        List<WaiverReportEntry> entries = waivers.stream()
-                .map(this::toWaiverEntry)
-                .toList();
-
-        return WaiverReport.builder()
-                .totalWaivers(waivers.size())
-                .totalWaiverAmount(totalWaiverAmount)
-                .entries(entries)
-                .build();
+        return null;
     }
 
     @Override
@@ -365,6 +367,34 @@ public class ReportServiceImp implements ReportService {
                 .build();
     }
 
+    private WaiverReportEntry toWaiverEntry(Waiver waiver) {
+
+        TuitionAccount account = waiver.getTuitionAccount();
+
+        String matricNumber = studentProfileRepository
+                .findById(account.getStudent().getId())
+                .map(StudentProfile::getMatricNumber)
+                .orElse("N/A");
+
+        return WaiverReportEntry.builder()
+                .waiverId(waiver.getId())
+                .studentId(account.getStudent().getId())
+                .studentName(account.getStudent().getFullName())
+                .matricNumber(matricNumber)
+                .academicYear(account.getSemester().getAcademicYear())
+                .semesterType(account.getSemester()
+                        .getSemesterType().name())
+                .allowedPaymentPercentage(
+                        waiver.getAllowedPaymentPercentage())
+                .reducedMinimumPayment(
+                        waiver.getReducedMinimumPayment())
+                .totalDue(account.getTotalDue())
+                .reason(waiver.getReason())
+                .approvedByName(waiver.getApprovedBy().getFullName())
+                .approvedAt(waiver.getApprovedAt())
+                .build();
+    }
+
     private RegistrationSummaryEntry toRegistrationEntry(
             Registration registration) {
 
@@ -392,36 +422,7 @@ public class ReportServiceImp implements ReportService {
                 .build();
     }
 
-    private WaiverReportEntry toWaiverEntry(Waiver waiver) {
 
-        TuitionAccount account = waiver.getTuitionAccount();
-
-        String matricNumber = studentProfileRepository
-                .findById(account.getStudent().getId())
-                .map(StudentProfile::getMatricNumber)
-                .orElse("N/A");
-
-        BigDecimal computedAmount = computeWaiverAmount(
-                waiver.getWaiverType(),
-                waiver.getValue(),
-                account.getTotalDue());
-
-        return WaiverReportEntry.builder()
-                .waiverId(waiver.getId())
-                .studentId(account.getStudent().getId())
-                .studentName(account.getStudent().getFullName())
-                .matricNumber(matricNumber)
-                .academicYear(account.getSemester().getAcademicYear())
-                .semesterType(account.getSemester()
-                        .getSemesterType().name())
-                .waiverType(waiver.getWaiverType())
-                .value(waiver.getValue())
-                .computedAmount(computedAmount)
-                .reason(waiver.getReason())
-                .approvedByName(waiver.getApprovedBy().getFullName())
-                .approvedAt(waiver.getApprovedAt())
-                .build();
-    }
 
     private long countByStatus(
             List<Registration> registrations,

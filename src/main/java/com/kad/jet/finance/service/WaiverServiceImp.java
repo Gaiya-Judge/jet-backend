@@ -1,14 +1,17 @@
 package com.kad.jet.finance.service;
 
+import com.kad.jet.config.SystemConfigKeys;
+import com.kad.jet.config.service.SystemConfigService;
 import com.kad.jet.finance.dto.CreateWaiverRequest;
 import com.kad.jet.finance.dto.WaiverResponse;
-import com.kad.jet.finance.mapper.WaiverMapper;
 import com.kad.jet.finance.model.TuitionAccount;
 import com.kad.jet.finance.model.TuitionAccountStatus;
 import com.kad.jet.finance.model.Waiver;
 import com.kad.jet.finance.model.WaiverType;
 import com.kad.jet.finance.repository.TuitionAccountRepository;
 import com.kad.jet.finance.repository.WaiverRepository;
+import com.kad.jet.student.model.StudentProfile;
+import com.kad.jet.student.repository.StudentProfileRepository;
 import com.kad.jet.user.model.UserRole;
 import com.kad.jet.user.model._User;
 import com.kad.jet.user.utility.RoleChecker;
@@ -31,6 +34,8 @@ public class WaiverServiceImp implements WaiverService {
 
     private final WaiverRepository waiverRepository;
     private final TuitionAccountRepository tuitionAccountRepository;
+    private final StudentProfileRepository studentProfileRepository;
+    private final SystemConfigService systemConfigService;
 
     @Override
     @Transactional
@@ -44,7 +49,8 @@ public class WaiverServiceImp implements WaiverService {
         TuitionAccount account = findTuitionAccount(
                 request.getTuitionAccountId());
 
-        // Cannot waive a fully paid account
+        // Cannot apply waiver to a fully paid account
+        // No point reducing minimum payment if already paid
         if (account.getTuitionAccountStatus() == TuitionAccountStatus.PAID) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -52,116 +58,94 @@ public class WaiverServiceImp implements WaiverService {
                             "tuition account");
         }
 
-        // Validate percentage waiver does not exceed 100%
-        if (request.getWaiverType() == WaiverType.PERCENTAGE &&
-                request.getValue().compareTo(
-                        BigDecimal.valueOf(100)) > 0) {
+        // Cannot apply if student has already paid enough
+        // to complete registration
+        if (account.getTuitionAccountStatus() == TuitionAccountStatus.PARTIAL ||
+                account.getTuitionAccountStatus() ==
+                        TuitionAccountStatus.COMPLETED) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "percentage waiver cannot exceed 100%");
+                    "student has already met the payment " +
+                            "threshold. waiver is not needed.");
         }
 
-        // Calculate the actual Naira amount this waiver deducts
-        BigDecimal computedAmount = computeWaiverAmount(
-                request.getWaiverType(),
-                request.getValue(),
-                account.getTotalDue());
+        // One waiver per tuition account
+        if (waiverRepository.existsByTuitionAccountId(
+                account.getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "a waiver already exists for this tuition " +
+                            "account. remove the existing waiver before " +
+                            "applying a new one.");
+        }
 
-        // Waiver cannot exceed the current balance
-        // Cannot give more discount than what is owed
-        if (computedAmount.compareTo(account.getBalance()) > 0) {
+        // Waiver percentage must be LESS than the system default
+        // It makes no sense to grant a waiver that is higher
+        // than or equal to what is already required
+        int systemMinPercentage = systemConfigService.getIntValue(
+                SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
+
+        if (request.getAllowedPaymentPercentage()
+                >= systemMinPercentage) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "waiver amount ₦" + computedAmount +
-                            " exceeds current balance ₦" +
-                            account.getBalance());
+                    "waiver percentage (" +
+                            request.getAllowedPaymentPercentage() +
+                            "%) must be less than the system minimum " +
+                            "payment percentage (" +
+                            systemMinPercentage + "%). " +
+                            "a waiver that is equal to or higher than " +
+                            "the standard threshold has no effect.");
         }
 
-        // Save the waiver record
+        // Calculate the reduced minimum payment
+        // This is the only thing that changes
+        BigDecimal reducedMinimumPayment = account.getTotalDue()
+                .multiply(BigDecimal.valueOf(
+                        request.getAllowedPaymentPercentage()))
+                .divide(BigDecimal.valueOf(100))
+                .setScale(2, RoundingMode.CEILING);
+
+        // Save the waiver
         Waiver waiver = Waiver.builder()
                 .tuitionAccount(account)
-                .waiverType(request.getWaiverType())
-                .value(request.getValue())
+                .allowedPaymentPercentage(
+                        request.getAllowedPaymentPercentage())
+                .reducedMinimumPayment(reducedMinimumPayment)
                 .reason(request.getReason())
                 .approvedBy(currentUser)
                 .build();
 
         waiverRepository.save(waiver);
 
-        // Recalculate tuition account figures
-        // waiver_amount accumulates — a student can have
-        // multiple waivers on the same account
-        BigDecimal newWaiverTotal = account.getWaiverAmount()
-                .add(computedAmount);
-        account.setWaiverAmount(newWaiverTotal);
+        // Update the minimum payment on the tuition account
+        // This is the ONLY field that changes
+        // totalDue, balance, tuitionAmount — all unchanged
+        BigDecimal originalMinimumPayment =
+                account.getMinimumPayment();
 
-        // Recalculate total due
-        // total_due = tuition + admin_charges
-        //             - waiver_amount - credit_carried_forward
-        BigDecimal newTotalDue = account.getTuitionAmount()
-                .add(account.getAdminChargesTotal())
-                .subtract(newWaiverTotal)
-                .subtract(account.getCreditCarriedForward());
-
-        // Total due cannot go below zero
-        if (newTotalDue.compareTo(BigDecimal.ZERO) < 0) {
-            newTotalDue = BigDecimal.ZERO;
-        }
-
-        account.setTotalDue(newTotalDue);
-
-        // Recalculate minimum payment based on new total due
-        // Read percentage from system config
-        BigDecimal newMinimumPayment = newTotalDue
-                .multiply(BigDecimal.valueOf(70))
-                .divide(BigDecimal.valueOf(100))
-                .setScale(2, RoundingMode.CEILING);
-        account.setMinimumPayment(newMinimumPayment);
-
-        // Recalculate balance
-        BigDecimal newBalance = newTotalDue
-                .subtract(account.getTotalPaid());
-        if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-            newBalance = BigDecimal.ZERO;
-        }
-        account.setBalance(newBalance);
-
-        // Update status to ADJUSTED — signals a Bursar
-        // manually changed the financial figures
-        account.setTuitionAccountStatus(TuitionAccountStatus.ADJUSTED);
-
+        account.setMinimumPayment(reducedMinimumPayment);
         tuitionAccountRepository.save(account);
 
         log.info("Waiver applied by Bursar {}. " +
-                        "Account: {} Type: {} Value: {} Amount: ₦{}",
+                        "Account: {} Student still owes: ₦{} " +
+                        "New minimum payment: ₦{} ({}%) " +
+                        "Previously: ₦{} ({}%)",
                 currentUser.getId(),
                 account.getId(),
-                request.getWaiverType(),
-                request.getValue(),
-                computedAmount);
+                account.getTotalDue(),
+                reducedMinimumPayment,
+                request.getAllowedPaymentPercentage(),
+                originalMinimumPayment,
+                systemMinPercentage);
 
-        return WaiverMapper.toDto(waiver, computedAmount);
+        return buildResponse(
+                waiver, account, originalMinimumPayment);
     }
 
     @Override
-    public WaiverResponse getWaiverById(_User currentUser, UUID id) {
-        if (!RoleChecker.hasAnyRole(currentUser,
-                UserRole.BURSAR, UserRole.SUPER_ADMIN)) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
-        }
+    public WaiverResponse getWaiverByTuitionAccount(_User currentUser, UUID tuitionAccountId) {
 
-        Waiver waiver = findById(id);
-        BigDecimal computedAmount = computeWaiverAmount(
-                waiver.getWaiverType(),
-                waiver.getValue(),
-                waiver.getTuitionAccount().getTotalDue());
-
-        return WaiverMapper.toDto(waiver, computedAmount);
-    }
-
-    @Override
-    public List<WaiverResponse> getWaiversByTuitionAccount(_User currentUser, UUID tuitionAccountId) {
         if (!RoleChecker.hasAnyRole(currentUser,
                 UserRole.BURSAR, UserRole.STUDENT,
                 UserRole.SUPER_ADMIN)) {
@@ -169,11 +153,10 @@ public class WaiverServiceImp implements WaiverService {
                     HttpStatus.UNAUTHORIZED, "unauthorized request");
         }
 
-        // Validate account exists
         TuitionAccount account = findTuitionAccount(
                 tuitionAccountId);
 
-        // Student can only see their own account waivers
+        // Student can only see their own account waiver
         if (RoleChecker.is_student(currentUser) &&
                 !account.getStudent().getId()
                         .equals(currentUser.getId())) {
@@ -182,20 +165,60 @@ public class WaiverServiceImp implements WaiverService {
                     "you can only view your own tuition account");
         }
 
-        return waiverRepository
+        Waiver waiver = waiverRepository
                 .findByTuitionAccountId(tuitionAccountId)
+                .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "no waiver found for this tuition account"));
+
+        int systemMinPercentage = systemConfigService.getIntValue(
+                SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
+
+        BigDecimal originalMinimumPayment = account.getTotalDue()
+                .multiply(BigDecimal.valueOf(systemMinPercentage))
+                .divide(BigDecimal.valueOf(100))
+                .setScale(2, RoundingMode.CEILING);
+
+        return buildResponse(
+                waiver, account, originalMinimumPayment);
+    }
+
+    @Override
+    public List<WaiverResponse> getAllWaivers(_User currentUser) {
+
+
+        if (!RoleChecker.hasAnyRole(currentUser,
+                UserRole.BURSAR, UserRole.SUPER_ADMIN)) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+        }
+
+        int systemMinPercentage = systemConfigService.getIntValue(
+                SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
+
+        return waiverRepository.findAllByOrderByApprovedAtDesc()
                 .stream()
-                .map(w -> WaiverMapper.toDto(w,
-                        computeWaiverAmount(
-                                w.getWaiverType(),
-                                w.getValue(),
-                                account.getTotalDue())))
+                .map(waiver -> {
+                    TuitionAccount account =
+                            waiver.getTuitionAccount();
+
+                    BigDecimal originalMinimum =
+                            account.getTotalDue()
+                                    .multiply(BigDecimal.valueOf(
+                                            systemMinPercentage))
+                                    .divide(BigDecimal.valueOf(100))
+                                    .setScale(2,
+                                            RoundingMode.CEILING);
+
+                    return buildResponse(
+                            waiver, account, originalMinimum);
+                })
                 .toList();
     }
 
     @Override
-    @Transactional
-    public void removeWaiver(_User currentUser, UUID id) {
+    public void removeWaiver(_User currentUser, UUID waiverId) {
+
 
         if (!RoleChecker.hasAnyRole(currentUser,
                 UserRole.SUPER_ADMIN)) {
@@ -204,89 +227,76 @@ public class WaiverServiceImp implements WaiverService {
                     "only SUPER_ADMIN can remove a waiver");
         }
 
-        Waiver waiver = findById(id);
+        Waiver waiver = waiverRepository.findById(waiverId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "waiver not found"));
+
         TuitionAccount account = waiver.getTuitionAccount();
 
-        // Cannot remove waiver from a fully paid account
-        // The payment has already been made with the discount
-        // Removing it now would create a phantom debt
-        if (account.getTuitionAccountStatus() == TuitionAccountStatus.PAID) {
+        // Cannot remove waiver if student has already paid
+        // based on the reduced threshold
+        // Removing it now would make a paid registration
+        // suddenly appear underpaid
+        if (account.getTuitionAccountStatus() == TuitionAccountStatus.PAID ||
+                account.getTuitionAccountStatus() ==
+                        TuitionAccountStatus.PARTIAL) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "cannot remove a waiver from a fully paid " +
-                            "tuition account");
+                    "cannot remove waiver. student has already " +
+                            "made payment based on the waiver terms. " +
+                            "contact IT admin if this must be reversed.");
         }
 
-        // Calculate how much this waiver contributed
-        BigDecimal computedAmount = computeWaiverAmount(
-                waiver.getWaiverType(),
-                waiver.getValue(),
-                account.getTotalDue());
+        // Restore the original minimum payment
+        int systemMinPercentage = systemConfigService.getIntValue(
+                SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
 
-        // Delete the waiver
-        waiverRepository.delete(waiver);
-
-        // Reverse the waiver from the account figures
-        BigDecimal newWaiverTotal = account.getWaiverAmount()
-                .subtract(computedAmount);
-        if (newWaiverTotal.compareTo(BigDecimal.ZERO) < 0) {
-            newWaiverTotal = BigDecimal.ZERO;
-        }
-        account.setWaiverAmount(newWaiverTotal);
-
-        // Recalculate total due going back up
-        BigDecimal newTotalDue = account.getTuitionAmount()
-                .add(account.getAdminChargesTotal())
-                .subtract(newWaiverTotal)
-                .subtract(account.getCreditCarriedForward());
-
-        account.setTotalDue(newTotalDue);
-
-        // Recalculate minimum payment
-        BigDecimal newMinimumPayment = newTotalDue
-                .multiply(BigDecimal.valueOf(70))
+        BigDecimal originalMinimumPayment = account.getTotalDue()
+                .multiply(BigDecimal.valueOf(systemMinPercentage))
                 .divide(BigDecimal.valueOf(100))
                 .setScale(2, RoundingMode.CEILING);
-        account.setMinimumPayment(newMinimumPayment);
 
-        // Recalculate balance
-        BigDecimal newBalance = newTotalDue
-                .subtract(account.getTotalPaid());
-        if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-            newBalance = BigDecimal.ZERO;
-        }
-        account.setBalance(newBalance);
-
+        account.setMinimumPayment(originalMinimumPayment);
         tuitionAccountRepository.save(account);
 
-        log.info("Waiver {} removed by SUPER_ADMIN {}. " +
-                        "Account {} recalculated. New total due: ₦{}",
-                id,
+        waiverRepository.delete(waiver);
+
+        log.info("Waiver removed by SUPER_ADMIN {}. " +
+                        "Account {} minimum payment restored to ₦{} ({}%)",
                 currentUser.getId(),
                 account.getId(),
-                newTotalDue);
+                originalMinimumPayment,
+                systemMinPercentage);
     }
 
-    private BigDecimal computeWaiverAmount(
-            WaiverType type,
-            BigDecimal value,
-            BigDecimal totalDue) {
+    private WaiverResponse buildResponse(
+            Waiver waiver,
+            TuitionAccount account,
+            BigDecimal originalMinimumPayment) {
 
-        if (type == WaiverType.PERCENTAGE) {
-            return totalDue
-                    .multiply(value)
-                    .divide(BigDecimal.valueOf(100))
-                    .setScale(2, RoundingMode.HALF_UP);
-        }
+        String matricNumber = studentProfileRepository
+                .findById(account.getStudent().getId())
+                .map(StudentProfile::getMatricNumber)
+                .orElse("N/A");
 
-        // FIXED — value IS the amount
-        return value.setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private Waiver findById(UUID id) {
-        return waiverRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "waiver not found"));
+        return WaiverResponse.builder()
+                .id(waiver.getId())
+                .tuitionAccountId(account.getId())
+                .studentName(account.getStudent().getFullName())
+                .matricNumber(matricNumber)
+                .allowedPaymentPercentage(
+                        waiver.getAllowedPaymentPercentage())
+                .reducedMinimumPayment(
+                        waiver.getReducedMinimumPayment())
+                .originalMinimumPayment(originalMinimumPayment)
+                .totalDue(account.getTotalDue())
+                // Always show full amount — unchanged by waiver
+                .reason(waiver.getReason())
+                .approvedByName(
+                        waiver.getApprovedBy().getFullName())
+                .approvedAt(waiver.getApprovedAt())
+                .build();
     }
 
     private TuitionAccount findTuitionAccount(UUID id) {

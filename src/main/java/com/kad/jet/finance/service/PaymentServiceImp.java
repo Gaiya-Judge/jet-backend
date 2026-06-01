@@ -367,10 +367,6 @@ public class PaymentServiceImp implements PaymentService {
 
         TuitionAccount account = payment.getTuitionAccount();
 
-        // If already fully paid — this should not happen
-        // because validation prevents it at initiation
-        // but if a webhook arrives for an old payment
-        // after account is paid — log and ignore
         if (account.getTuitionAccountStatus() == TuitionAccountStatus.PAID) {
             log.warn("Webhook arrived for already PAID account {}. " +
                             "Reference: {}. No changes made.",
@@ -379,8 +375,7 @@ public class PaymentServiceImp implements PaymentService {
             return;
         }
 
-        // totalPaid always reflects ACTUAL cash received
-        // Balance is derived — never cap totalPaid
+        // totalPaid always reflects actual cash received
         BigDecimal newTotalPaid = account.getTotalPaid()
                 .add(payment.getAmount());
 
@@ -396,21 +391,21 @@ public class PaymentServiceImp implements PaymentService {
 
         account.setBalance(newBalance);
 
-        // Update status
+        // Determine status
         if (newBalance.compareTo(BigDecimal.ZERO) == 0) {
+            // Fully paid
             account.setTuitionAccountStatus(TuitionAccountStatus.PAID);
-        } else {
-            int minPercentage = systemConfigService.getIntValue(
-                    SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
 
-            BigDecimal minimumThreshold = account.getTotalDue()
-                    .multiply(BigDecimal.valueOf(minPercentage))
-                    .divide(BigDecimal.valueOf(100))
-                    .setScale(2, RoundingMode.CEILING);
+        } else if (newTotalPaid.compareTo(
+                account.getMinimumPayment()) >= 0) {
 
-            if (newTotalPaid.compareTo(minimumThreshold) >= 0) {
-                account.setTuitionAccountStatus(TuitionAccountStatus.PARTIAL);
-            }
+            // Met the minimum payment threshold
+            // This reads account.getMinimumPayment() directly
+            // which already reflects any waiver applied
+            // No need to recalculate from system config here
+            // If waiver reduced minimumPayment to 40%
+            // this check respects that automatically
+            account.setTuitionAccountStatus(TuitionAccountStatus.PARTIAL);
         }
 
         tuitionAccountRepository.save(account);
@@ -636,23 +631,23 @@ public class PaymentServiceImp implements PaymentService {
         }
 
         // First payment — must meet the 70% minimum
+        // First payment minimum check
         if (account.getTotalPaid()
                 .compareTo(BigDecimal.ZERO) == 0
                 && pendingAmount.compareTo(BigDecimal.ZERO) == 0) {
 
-            int minPercentage = systemConfigService.getIntValue(
-                    SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
-
+            // account.getMinimumPayment() already reflects
+            // any waiver the Bursar applied
+            // No need to recalculate from system config
             if (amount.compareTo(
                     account.getMinimumPayment()) < 0) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
-                        "minimum first payment is ₦" +
+                        "minimum payment required is ₦" +
                                 account.getMinimumPayment() +
-                                " (" + minPercentage +
-                                "% of total due ₦" +
-                                account.getTotalDue() + "). " +
-                                "you attempted to pay ₦" + amount);
+                                ". you attempted to pay ₦" + amount +
+                                ". if you have a waiver it has been " +
+                                "applied to this amount already.");
             }
         }
 

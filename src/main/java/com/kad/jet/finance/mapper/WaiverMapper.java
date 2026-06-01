@@ -13,11 +13,10 @@ public class WaiverMapper {
                 .id(waiver.getId())
                 .tuitionAccountId(
                         waiver.getTuitionAccount().getId())
-                .waiverType(waiver.getWaiverType())
-                .value(waiver.getValue())
-                .computedAmount(computedAmount)
+                .studentName(waiver.getTuitionAccount().getStudent().getFullName())
                 .reason(waiver.getReason())
-                .approvedBy(waiver.getApprovedBy().getId())
+                .allowedPaymentPercentage(waiver.getAllowedPaymentPercentage())
+                .approvedAt(waiver.getApprovedAt())
                 .approvedByName(
                         waiver.getApprovedBy().getFullName())
                 .approvedAt(waiver.getApprovedAt())

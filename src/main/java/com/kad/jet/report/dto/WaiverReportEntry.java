@@ -18,9 +18,10 @@ public class WaiverReportEntry {
     private String matricNumber;
     private String academicYear;
     private String semesterType;
-    private WaiverType waiverType;
-    private BigDecimal value;
-    private BigDecimal computedAmount;
+    private Integer allowedPaymentPercentage;
+    private BigDecimal reducedMinimumPayment;
+    private BigDecimal totalDue;
+    // Always the full amount — waivers do not reduce this
     private String reason;
     private String approvedByName;
     private LocalDateTime approvedAt;
