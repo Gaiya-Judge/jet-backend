@@ -204,34 +204,32 @@ public class ReportServiceImp implements ReportService {
     @Override
     public WaiverReport getWaiverReport(_User currentUser) {
 
-//        if (!RoleChecker.hasAnyRole(currentUser,
-//                UserRole.BURSAR, UserRole.ACCOUNTANT,
-//                UserRole.SUPER_ADMIN)) {
-//            throw new ResponseStatusException(
-//                    HttpStatus.UNAUTHORIZED, "unauthorized request");
-//        }
-//
-//        List<Waiver> waivers = waiverRepository
-//                .findAllByOrderByApprovedAtDesc();
-//
-//        BigDecimal totalWaiverAmount = waivers.stream()
-//                .map(w -> computeWaiverAmount(
-//                        w.getWaiverType(),
-//                        w.getValue(),
-//                        w.getTuitionAccount().getTotalDue()))
-//                .reduce(BigDecimal.ZERO, BigDecimal::add);
-//
-//        List<WaiverReportEntry> entries = waivers.stream()
-//                .map(this::toWaiverEntry)
-//                .toList();
-//
-//        return WaiverReport.builder()
-//                .totalWaivers(waivers.size())
-//                .totalWaiverAmount(totalWaiverAmount)
-//                .entries(entries)
-//                .build();
+        if (!RoleChecker.hasAnyRole(currentUser,
+                UserRole.BURSAR, UserRole.ACCOUNTANT,
+                UserRole.SUPER_ADMIN)) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+        }
 
-        return null;
+        List<Waiver> waivers = waiverRepository
+                .findAllByOrderByApprovedAtDesc();
+
+        // Total of all reduced minimum payments granted
+        // This shows how much the school relaxed
+        // its payment threshold across all students
+        BigDecimal totalReducedMinimumPayments = waivers.stream()
+                .map(Waiver::getReducedMinimumPayment)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        List<WaiverReportEntry> entries = waivers.stream()
+                .map(this::toWaiverEntry)
+                .toList();
+
+        return WaiverReport.builder()
+                .totalWaivers(waivers.size())
+                .totalReducedMinimumPayments(totalReducedMinimumPayments)
+                .entries(entries)
+                .build();
     }
 
     @Override

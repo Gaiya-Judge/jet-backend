@@ -741,8 +741,122 @@ public class RegistrationServiceImp implements RegistrationService{
     }
 
     @Override
+    @Transactional
     public AddDropResponse dropCourseDuringAddDrop(_User currentUser, UUID registrationId, UUID courseId, String assistReason) {
-        return null;
+
+            if (!RoleChecker.hasAnyRole(currentUser,
+                    UserRole.STUDENT, UserRole.IT_ADMIN,
+                    UserRole.SUPER_ADMIN)) {
+                throw new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED, "unauthorized request");
+            }
+
+            boolean isAdmin = RoleChecker.hasAnyRole(currentUser,
+                    UserRole.IT_ADMIN, UserRole.SUPER_ADMIN);
+
+            if (isAdmin && (assistReason == null
+                    || assistReason.isBlank())) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "assist reason is required");
+            }
+
+            Registration registration = findById(registrationId);
+
+            // Must be APPROVED or COMPLETED
+            if (registration.getStatus() != RegistrationStatus.APPROVED &&
+                    registration.getStatus() !=
+                            RegistrationStatus.COMPLETED) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "add/drop is only allowed on APPROVED or " +
+                                "COMPLETED registrations. current status: " +
+                                registration.getStatus());
+            }
+
+            // Check window is open
+            validateAddDropWindow(registration.getSemester());
+
+            // Find the course in this registration
+            RegistrationItem item = registrationItemRepository
+                    .findByRegistrationIdAndCourseId(
+                            registrationId, courseId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "course not found in this registration"));
+
+            // Carryover courses cannot be dropped
+            if (!item.getIsDroppable()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "carryover courses cannot be dropped");
+            }
+
+            // Credit unit minimum check
+            int newTotalUnits = registration.getTotalCreditUnits()
+                    - item.getCourse().getCreditUnits();
+
+            int minUnits = systemConfigService.getIntValue(
+                    SystemConfigKeys.MIN_CREDIT_UNITS);
+
+            if (newTotalUnits < minUnits) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "dropping this course would bring your " +
+                                "total credit units to " + newTotalUnits +
+                                " which is below the minimum of " + minUnits);
+            }
+
+            // Get tuition account before changes
+            TuitionAccount account = getTuitionAccount(registrationId);
+            BigDecimal previousTotalDue = account.getTotalDue();
+
+            String courseCode = item.getCourse().getCourseCode();
+            int droppedUnits = item.getCourse().getCreditUnits();
+
+            // Remove the course
+            registrationItemRepository.delete(item);
+
+            // Update credit units
+            registration.setTotalCreditUnits(newTotalUnits);
+            registrationRepository.save(registration);
+
+            // Recalculate tuition account figures
+            StudentProfile studentProfile = getStudentProfile(
+                    registration.getStudent().getId());
+
+            recalculateTuitionForAddDrop(
+                    account, registration, studentProfile);
+
+            BigDecimal newTotalDue = account.getTotalDue();
+            BigDecimal refundAmount = previousTotalDue
+                    .subtract(newTotalDue);
+
+            // No cash refund — create credit balance
+            // for next semester if there is a positive difference
+            if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
+                createCreditBalance(
+                        registration.getStudent(),
+                        registration.getSemester(),
+                        refundAmount);
+            }
+
+            log.info("Course {} dropped during add/drop for " +
+                            "registration {}. Credit generated: ₦{}",
+                    courseCode, registrationId, refundAmount);
+
+            return AddDropResponse.builder()
+                    .registration(buildResponse(registration))
+                    .previousTotalDue(previousTotalDue)
+                    .newTotalDue(newTotalDue)
+                    .difference(refundAmount.negate())
+                    .message("course " + courseCode +
+                            " dropped successfully. " +
+                            "₦" + refundAmount +
+                            " has been added as a credit balance " +
+                            "for your next semester.")
+                    .build();
+
     }
 
 

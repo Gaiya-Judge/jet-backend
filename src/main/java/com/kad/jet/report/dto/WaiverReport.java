@@ -10,7 +10,13 @@ import java.util.List;
 @Builder
 public class WaiverReport {
 
+
     private Integer totalWaivers;
-    private BigDecimal totalWaiverAmount;
+
+    private BigDecimal totalReducedMinimumPayments;
+    // Sum of all reducedMinimumPayment values
+    // Shows the total threshold reductions granted
+    // NOT a reduction in fees — students still owe full amounts
+
     private List<WaiverReportEntry> entries;
 }

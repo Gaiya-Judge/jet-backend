@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -138,6 +139,22 @@ public class SemesterServiceImp implements SemesterService {
         }
 
         Semester semester = findById(semesterId);
+
+        LocalDate today = LocalDate.now();
+
+        if (addDropRequest.getAddDropStart().isBefore(today)){
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "add and drop cannot be before today"
+            );
+        }
+
+        if (addDropRequest.getAddDropEnd().isBefore(today)){
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "add and drop cannot be before today"
+            );
+        }
 
         if (!addDropRequest.getAddDropEnd().isAfter(addDropRequest.getAddDropStart())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
