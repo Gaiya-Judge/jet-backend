@@ -828,34 +828,70 @@ public class RegistrationServiceImp implements RegistrationService{
             recalculateTuitionForAddDrop(
                     account, registration, studentProfile);
 
-            BigDecimal newTotalDue = account.getTotalDue();
-            BigDecimal refundAmount = previousTotalDue
+        //refresh to avoid stale balance
+        account = getTuitionAccount(registrationId);
+
+        BigDecimal newTotalDue = account.getTotalDue();
+
+
+        // Credit is based on what student actually PAID
+        // vs what they now OWE after the drop
+        // Not just the difference in totalDue
+        BigDecimal creditToGenerate = BigDecimal.ZERO;
+
+        BigDecimal refundAmount = previousTotalDue
+                .subtract(newTotalDue);
+
+        if (account.getTotalPaid().compareTo(newTotalDue) > 0) {
+            // Student paid more than they now owe
+            // The excess becomes a credit for next semester
+            creditToGenerate = account.getTotalPaid()
                     .subtract(newTotalDue);
+        }
 
-            // No cash refund — create credit balance
-            // for next semester if there is a positive difference
-            if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
-                createCreditBalance(
-                        registration.getStudent(),
-                        registration.getSemester(),
-                        refundAmount);
-            }
+        // Create credit balance only if student actually overpaid
+        if (creditToGenerate.compareTo(BigDecimal.ZERO) > 0) {
+            createCreditBalance(
+                    registration.getStudent(),
+                    registration.getSemester(),
+                    creditToGenerate);
 
-            log.info("Course {} dropped during add/drop for " +
-                            "registration {}. Credit generated: ₦{}",
-                    courseCode, registrationId, refundAmount);
+            log.info("Credit balance of ₦{} created for student {} " +
+                            "after dropping course {} during add/drop",
+                    creditToGenerate,
+                    registration.getStudent().getId(),
+                    courseCode);
+        }
 
-            return AddDropResponse.builder()
-                    .registration(buildResponse(registration))
-                    .previousTotalDue(previousTotalDue)
-                    .newTotalDue(newTotalDue)
-                    .difference(refundAmount.negate())
-                    .message("course " + courseCode +
-                            " dropped successfully. " +
-                            "₦" + refundAmount +
-                            " has been added as a credit balance " +
-                            "for your next semester.")
-                    .build();
+        // Build appropriate message based on scenario
+        String message;
+        if (creditToGenerate.compareTo(BigDecimal.ZERO) > 0) {
+            message = "course " + courseCode +
+                    " dropped successfully. " +
+                    "₦" + creditToGenerate +
+                    " credit has been added to your account " +
+                    "and will be applied to your next semester fees.";
+        } else {
+            message = "course " + courseCode +
+                    " dropped successfully. " +
+                    "your new total fees are ₦" + newTotalDue;
+        }
+
+        log.info("Course {} dropped during add/drop for " +
+                        "registration {}. Credit generated: ₦{}",
+                courseCode, registrationId, creditToGenerate);
+
+        return AddDropResponse.builder()
+                .registration(buildResponse(registration))
+                .previousTotalDue(previousTotalDue)
+                .newTotalDue(newTotalDue)
+                .difference(refundAmount.negate())
+                .message("course " + courseCode +
+                        " dropped successfully. " +
+                        "₦" + refundAmount +
+                        " has been added as a credit balance " +
+                        "for your next semester.")
+                .build();
 
     }
 
@@ -1266,7 +1302,23 @@ public class RegistrationServiceImp implements RegistrationService{
         }
 
         account.setBalance(newBalance);
-        account.setTuitionAccountStatus(TuitionAccountStatus.ADJUSTED);
+
+        if (newBalance.compareTo(BigDecimal.ZERO) == 0) {
+            // Either fully paid or overpaid
+            // Both result in zero balance
+            account.setTuitionAccountStatus(TuitionAccountStatus.PAID);
+
+        } else if (account.getTotalPaid().compareTo(
+                newMinimumPayment) >= 0) {
+            // Still meets minimum threshold
+            account.setTuitionAccountStatus(TuitionAccountStatus.PARTIAL);
+
+        } else {
+            // Dropping a course reduced total due but
+            // student has not yet met minimum payment
+            // on the new amount
+            account.setTuitionAccountStatus(TuitionAccountStatus.ADJUSTED);
+        }
 
         tuitionRepository.save(account);
 
