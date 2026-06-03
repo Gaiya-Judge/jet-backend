@@ -55,4 +55,11 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
             "AND p.expiresAt < :now")
     List<Payment> findExpiredPendingPayments(
             @Param("now") LocalDateTime now);
+
+    @Query("SELECT p FROM Payment p " +
+            "WHERE p.paymentMethod = 'PAYSTACK' " +
+            "AND p.status = 'PENDING' " +
+            "AND p.initiatedAt < :threshold")
+    List<Payment> findPendingPaystackPaymentsOlderThan(
+            @Param("threshold") LocalDateTime threshold);
 }

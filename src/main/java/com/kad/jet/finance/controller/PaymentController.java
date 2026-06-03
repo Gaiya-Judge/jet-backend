@@ -45,6 +45,17 @@ public class PaymentController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/verify-status/{reference}")
+    public ResponseEntity<?> verifyPaymentStatus(
+            @AuthenticationPrincipal _User currentUser,
+            @PathVariable String reference) {
+
+        PaymentResponse response =
+                paymentService.verifyPaymentStatus(
+                        currentUser, reference);
+
+        return ResponseEntity.ok(response);
+    }
 
     @PostMapping("/bank-transfer")
     public ResponseEntity<?> submitBankTransfer(

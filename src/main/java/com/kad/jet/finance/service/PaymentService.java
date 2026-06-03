@@ -22,4 +22,6 @@ public interface PaymentService {
     TuitionAccountResponse getTuitionAccount(_User currentUser, UUID tuitionAccountId);
 
     Page<PaymentResponse> getPendingBankTransfers(_User currentUser, Pageable pageable);
+
+    PaymentResponse verifyPaymentStatus(_User currentUser, String reference);
 }

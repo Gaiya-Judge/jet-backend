@@ -363,7 +363,102 @@ public class PaymentServiceImp implements PaymentService {
                 .map(PaymentMapper::toDto);
     }
 
-    private void updateTuitionAccount(Payment payment) {
+    @Override
+    @Transactional
+    public PaymentResponse verifyPaymentStatus(_User currentUser, String reference) {
+       //check authorization
+        if (!RoleChecker.is_student(currentUser)){
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "unauthorized request");
+        }
+
+        //find payment record by reference
+
+        Payment payment = paymentRepository.findByIdempotencyKey(reference)
+                .orElseThrow(()-> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "payment not found for reference " + reference));
+
+        //rule: student can only verify their payment
+        if (!payment.getTuitionAccount().getStudent().getId().equals(currentUser.getId())){
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "this payment those not belong to you"
+            );
+        }
+        //check if already verified
+        if (payment.getStatus() == PaymentStatus.VERIFIED){
+            log.info("Payment {} already verified. " +
+                    "Returning current state.", reference);
+            return PaymentMapper.toDto(payment);
+        }
+
+        //check already failed
+        if (payment.getStatus() == PaymentStatus.FAILED) {
+            return PaymentMapper.toDto(payment);
+        }
+
+        // Ask Paystack directly for the truth
+        log.info("Checking payment status with Paystack " +
+                "for reference: {}", reference);
+
+        try {
+            //initiate paystack object data
+            Map<String, Object> paystackData =
+                    paystackClient.verifyTransaction(reference);
+
+            //fetch status
+            String status = (String) paystackData.get("status");
+
+            if ("success".equals(status)){
+
+                //verify the amount matches
+                Object amountObj = paystackData.get("amount");
+                BigDecimal paidAmountNaira = BigDecimal
+                        .valueOf(((Number) amountObj).longValue())
+                        //converting the naira to kobo
+                        .divide(BigDecimal.valueOf(100));
+
+                if (paidAmountNaira.compareTo(BigDecimal.ZERO) != 0){
+                    log.error("Amount mismatch on manual verify " +
+                                    "for reference {}. " +
+                                    "Expected: ₦{} Got: ₦{}",
+                            reference,
+                            payment.getAmount(),
+                            paidAmountNaira);
+                    payment.setStatus(PaymentStatus.FAILED);
+                    paymentRepository.save(payment);
+                    return PaymentMapper.toDto(payment);
+                }
+
+                // Paystack confirms payment — process it
+                payment.setStatus(PaymentStatus.VERIFIED);
+                payment.setVerifiedAt(LocalDateTime.now());
+                paymentRepository.save(payment);
+
+                updateTuitionAccount(payment);
+
+                log.info("Payment {} verified via manual check. " +
+                        "Amount: ₦{}", reference, paidAmountNaira);
+            } else {
+                // Paystack says not successful yet
+                // Could still be processing — leave as PENDING
+                log.info("Paystack reports payment {} not yet " +
+                                "successful. Status from Paystack: {}",
+                        reference, status);
+            }
+        } catch (Exception e) {
+            log.error("Could not reach Paystack to verify " +
+                    "reference {}: {}", reference, e.getMessage());
+            // Do not change payment status
+            // Return current state and let student try again
+        }
+
+        return PaymentMapper.toDto(payment);
+    }
+
+    protected void updateTuitionAccount(Payment payment) {
 
         TuitionAccount account = payment.getTuitionAccount();
 
