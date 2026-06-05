@@ -4,5 +4,6 @@ public enum TuitionAccountStatus {
     PENDING,
     PARTIAL,
     PAID,
-    ADJUSTED
+    ADJUSTED,
+    COMPLETED
 }

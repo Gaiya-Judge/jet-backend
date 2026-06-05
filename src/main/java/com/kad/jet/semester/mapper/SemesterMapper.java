@@ -9,7 +9,7 @@ public class SemesterMapper {
         return SemesterResponse
                 .builder()
                 .id(semester.getId())
-                .academicYear(semester.getAcademyYear())
+                .academicYear(semester.getAcademicYear())
                 .addDropEnd(semester.getAddDropEnd())
                 .semesterType(semester.getSemesterType())
                 .addDropStart(semester.getAddDropStart())

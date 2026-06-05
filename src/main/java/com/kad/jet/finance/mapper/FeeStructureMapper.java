@@ -9,7 +9,7 @@ public class FeeStructureMapper {
         return FeeStructureResponse
                 .builder()
                 .id(feeStructure.getId())
-                .academicYear(feeStructure.getSemester().getAcademyYear())
+                .academicYear(feeStructure.getSemester().getAcademicYear())
                 .costPerCreditUnit(feeStructure.getCostPerCreditUnit())
                 .createdAt(feeStructure.getCreatedAt())
                 .programId(feeStructure.getProgram().getId())

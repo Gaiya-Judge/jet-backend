@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,10 +17,16 @@ public interface SemesterRepository extends JpaRepository<Semester, UUID> {
 
     Optional<Semester> findByStatus(SemesterStatus status);
 
-    boolean existsByAcademyYearAndSemesterType(
+    boolean existsByAcademicYearAndSemesterType(
             String academicYear,
             SemesterType semesterType
     );
 
     Page<Semester> findAll(Pageable pageable);
+
+    Optional<Semester> findByAcademicYearAndSemesterType(
+            String academicYear, SemesterType semesterType);
+
+    // Find all semesters for an academic year
+    List<Semester> findByAcademicYear(String academicYear);
 }

@@ -18,7 +18,7 @@ public class RegistrationMapper {
                 .matricNumber(matricNumber)
                 .semesterId(registration.getSemester().getId())
                 .academicYear(registration.getSemester()
-                        .getAcademyYear())
+                        .getAcademicYear())
                 .semesterType(registration.getSemester()
                         .getSemesterType().name())
                 .status(registration.getStatus())

@@ -34,7 +34,7 @@ public class SemesterServiceImp implements SemesterService {
                     "unauthorized request");
         }
 
-        if (semesterRepository.existsByAcademyYearAndSemesterType(
+        if (semesterRepository.existsByAcademicYearAndSemesterType(
                 semesterRequest.getAcademyYear(), semesterRequest.getSemesterType())){
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "A " + semesterRequest.getSemesterType() +
@@ -45,7 +45,7 @@ public class SemesterServiceImp implements SemesterService {
         Semester semester = Semester
                 .builder()
                 .semesterType(semesterRequest.getSemesterType())
-                .academyYear(semesterRequest.getAcademyYear())
+                .academicYear(semesterRequest.getAcademyYear())
                 .createdAt(LocalDateTime.now())
                 .status(SemesterStatus.UPCOMING)
                 .build();
@@ -90,7 +90,7 @@ public class SemesterServiceImp implements SemesterService {
                     "you cannot update a closed semester");
         }
 
-        semester.setAcademyYear(updateSemester.getAcademyYear());
+        semester.setAcademicYear(updateSemester.getAcademyYear());
 
         semesterRepository.save(semester);
         return SemesterMapper.toDto(semester);
@@ -117,7 +117,7 @@ public class SemesterServiceImp implements SemesterService {
                     .ifPresent(existing -> {
                         throw new ResponseStatusException(
                                 HttpStatus.CONFLICT,
-                                "Semester " + existing.getAcademyYear() +
+                                "Semester " + existing.getAcademicYear() +
                                         " " + existing.getSemesterType() +
                                         " is already active. " +
                                         "Close it before activating another.");
@@ -139,6 +139,22 @@ public class SemesterServiceImp implements SemesterService {
         }
 
         Semester semester = findById(semesterId);
+
+        LocalDate today = LocalDate.now();
+
+        if (addDropRequest.getAddDropStart().isBefore(today)){
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "add and drop cannot be before today"
+            );
+        }
+
+        if (addDropRequest.getAddDropEnd().isBefore(today)){
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "add and drop cannot be before today"
+            );
+        }
 
         if (!addDropRequest.getAddDropEnd().isAfter(addDropRequest.getAddDropStart())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

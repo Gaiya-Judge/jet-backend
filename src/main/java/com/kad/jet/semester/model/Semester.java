@@ -22,8 +22,8 @@ public class Semester {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false)
-    private String academyYear;
+    @Column(nullable = false, name = "academy_year")
+    private String academicYear;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)

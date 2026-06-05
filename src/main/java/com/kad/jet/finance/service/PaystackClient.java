@@ -20,28 +20,80 @@ public class PaystackClient {
     private final PaystackConfig paystackConfig;
     private final RestTemplate restTemplate;
 
-    public Map<String, Object> initializeTransaction(String email, BigDecimal amountInNaira, String reference){
-        //paystack required amount in kobo
-        //1 naira = 100 kobo
+    public Map<String, Object> initializeTransaction(
+            String email,
+            BigDecimal amountInNaira,
+            String reference) {
+
+        // Paystack requires amount in KOBO not Naira
+        // 1 Naira = 100 kobo
+        // ₦5,000 = 500,000 kobo
         long amountInKobo = amountInNaira
                 .multiply(BigDecimal.valueOf(100))
                 .longValue();
 
+        //put all required body in the send request
         Map<String, Object> body = new HashMap<>();
         body.put("email", email);
         body.put("amount", amountInKobo);
         body.put("reference", reference);
         body.put("currency", "NGN");
 
-        HttpEntity<Map<String, Object>> entity =
-                new HttpEntity<>(body, buildHeaders());
+        log.info("Initializing Paystack transaction. " +
+                        "Reference: {} Amount: ₦{}",
+                reference, amountInNaira);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    paystackConfig.getBaseUrl() +
+                            "/transaction/initialize",
+                    HttpMethod.POST,
+                    new HttpEntity<>(body, buildHeaders()),
+                    Map.class);
+
+            //getting response from paystack client
+            Map<String, Object> responseBody = response.getBody();
+
+            if (responseBody == null ||
+                    !(Boolean) responseBody.get("status")) {
+                String message = responseBody != null
+                        ? (String) responseBody.get("message")
+                        : "no response from Paystack";
+                log.error("Paystack initialization failed: {}",
+                        message);
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "payment initialization failed: " + message);
+            }
+
+            log.info("Paystack transaction initialized " +
+                    "successfully. Reference: {}", reference);
+
+            return (Map<String, Object>) responseBody.get("data");
+
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Could not reach Paystack API: {}",
+                    e.getMessage());
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "could not reach payment provider. " +
+                            "please try again.");
+        }
+    }
+
+    public Map<String, Object> verifyTransaction(String reference) {
+
+        log.info("Verifying transaction with Paystack. " +
+                "Reference: {}", reference);
 
         try {
             ResponseEntity<Map> response = restTemplate.exchange(
                     paystackConfig.getBaseUrl() +
                             "/transaction/verify/" + reference,
                     HttpMethod.GET,
-                    entity,
+                    new HttpEntity<>(buildHeaders()),
                     Map.class);
 
             Map<String, Object> responseBody = response.getBody();
@@ -58,16 +110,19 @@ public class PaystackClient {
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Paystack verify error: {}", e.getMessage());
+            log.error("Paystack verification error: {}",
+                    e.getMessage());
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "could not verify payment with paystack");
+                    "could not verify payment with Paystack");
         }
     }
 
     private HttpHeaders buildHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        // Bearer authentication — Paystack reads the secret key
+        // and knows which account this request belongs to
         headers.setBearerAuth(paystackConfig.getSecretKey());
         return headers;
     }

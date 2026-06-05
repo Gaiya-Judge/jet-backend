@@ -22,6 +22,9 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Version
+    private Long version;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tuition_account_id", nullable = false)
     private TuitionAccount tuitionAccount;
@@ -52,6 +55,11 @@ public class Payment {
     private LocalDateTime verifiedAt;
 
     private LocalDateTime initiatedAt;
+
+    //set for initiation payment to pay stack
+    //expires after 30mins
+    @Column(nullable = false)
+    private LocalDateTime expiresAt;
 
     @CreationTimestamp
     @Column(updatable = false)
