@@ -41,7 +41,7 @@ public class UserAuthServiceImp implements UserAuthService{
 
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        loginRequest.getEmail(),
+                        loginRequest.getIdentifier(),
                         loginRequest.getPassword()
                 )
         );
@@ -50,25 +50,10 @@ public class UserAuthServiceImp implements UserAuthService{
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "bad login credentials");
         }
 
-        _User user = userRepository.findByEmailIgnoreCase(loginRequest.getEmail())
-                .orElseThrow(()-> new ResponseStatusException(HttpStatus.NOT_FOUND, "user not recognized"));
+        _User user = (_User) authentication.getPrincipal();
 
         String accessToken = JwtUtil.generateAccessToken(user);
         String refreshToken = JwtUtil.generateRefreshToken(user);
-
-//        refreshTokenRepository.deleteByUser_Id(user.getId());
-//
-//        RefreshToken newrefreshToken =
-//                RefreshToken
-//                        .builder()
-//                        .user(user)
-//                        .token(refreshToken)
-//                        .createdAt(LocalDateTime.now())
-//                        .expiresAt(JwtUtil.extractExpiration(refreshToken))
-//                        .isRevoked(false)
-//                        .build();
-//
-//        refreshTokenRepository.save(newrefreshToken);
 
         return new AuthResponse(
                 accessToken,
