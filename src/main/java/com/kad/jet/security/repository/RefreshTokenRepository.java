@@ -4,6 +4,7 @@ import com.kad.jet.security.model.RefreshToken;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -12,5 +13,6 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
 
     Optional<RefreshToken> findByToken(String token);
 
-    void deleteByUser_Id(UUID userId);
+    // Used by our automated cleanup job
+    void deleteByExpiresAtBefore(Date now);
 }

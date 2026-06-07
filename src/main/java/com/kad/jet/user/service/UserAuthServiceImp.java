@@ -1,5 +1,6 @@
 package com.kad.jet.user.service;
 
+import com.kad.jet.security.model.RefreshToken;
 import com.kad.jet.security.repository.RefreshTokenRepository;
 import com.kad.jet.security.service.JwtUtil;
 import com.kad.jet.user.dto.*;
@@ -41,7 +42,7 @@ public class UserAuthServiceImp implements UserAuthService{
 
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        loginRequest.getEmail(),
+                        loginRequest.getIdentifier(),
                         loginRequest.getPassword()
                 )
         );
@@ -50,25 +51,20 @@ public class UserAuthServiceImp implements UserAuthService{
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "bad login credentials");
         }
 
-        _User user = userRepository.findByEmailIgnoreCase(loginRequest.getEmail())
-                .orElseThrow(()-> new ResponseStatusException(HttpStatus.NOT_FOUND, "user not recognized"));
+        _User user = (_User) authentication.getPrincipal();
 
         String accessToken = JwtUtil.generateAccessToken(user);
         String refreshToken = JwtUtil.generateRefreshToken(user);
 
-//        refreshTokenRepository.deleteByUser_Id(user.getId());
-//
-//        RefreshToken newrefreshToken =
-//                RefreshToken
-//                        .builder()
-//                        .user(user)
-//                        .token(refreshToken)
-//                        .createdAt(LocalDateTime.now())
-//                        .expiresAt(JwtUtil.extractExpiration(refreshToken))
-//                        .isRevoked(false)
-//                        .build();
-//
-//        refreshTokenRepository.save(newrefreshToken);
+        RefreshToken refreshTokenEntity = RefreshToken
+                .builder()
+                .token(refreshToken)
+                .user(user)
+                .expiresAt(JwtUtil.extractExpiration(refreshToken))
+                .isRevoked(false)
+                .build();
+
+        refreshTokenRepository.save(refreshTokenEntity);
 
         return new AuthResponse(
                 accessToken,
@@ -83,7 +79,56 @@ public class UserAuthServiceImp implements UserAuthService{
     @Transactional
     @Override
     public AuthResponse refreshToken(RefreshTokenRequest refreshTokenRequest) {
-        return null;
+        String refreshToken = refreshTokenRequest.getRefreshToken();
+
+        String identifier;
+        try {
+            identifier = JwtUtil.extractEmail(refreshToken);
+
+            if (JwtUtil.isTokenExpired(refreshToken)) {
+                throw new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Refresh token expired");
+            }
+        } catch (Exception e) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Invalid refresh token format");
+        }
+
+        RefreshToken tokenEntity = refreshTokenRepository.findByToken(refreshToken)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Token not found in database"));
+
+        if (tokenEntity.getIsRevoked()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Token has been revoked. Please log in again.");
+        }
+
+        tokenEntity.setIsRevoked(true);
+        refreshTokenRepository.save(tokenEntity);
+
+        _User user = tokenEntity.getUser();
+
+        String newAccessToken = JwtUtil.generateAccessToken(user);
+        String newRefreshToken = JwtUtil.generateRefreshToken(user);
+
+        RefreshToken newTokenEntity = RefreshToken.builder()
+                .user(user)
+                .token(newRefreshToken)
+                .expiresAt(JwtUtil.extractExpiration(newRefreshToken))
+                .isRevoked(false)
+                .build();
+
+        refreshTokenRepository.save(newTokenEntity);
+
+        return new AuthResponse(
+                newAccessToken,
+                newRefreshToken,
+                user.getEmail(),
+                user.getUserRole().name(),
+                user.getId()
+        );
     }
 
     @Transactional
