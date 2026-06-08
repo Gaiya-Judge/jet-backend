@@ -33,7 +33,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth->
                         auth.requestMatchers(HttpMethod.POST,"api/user/auth/**")
                                 .permitAll()
-                                .requestMatchers(HttpMethod.GET, "api/user/auth/login/**")
+                                .requestMatchers(HttpMethod.GET, "api/user/auth/login/**","api/ping")
                                 .permitAll()
                                 .requestMatchers(HttpMethod.POST, "api/payment/webhook")
                                 .permitAll()
@@ -61,6 +61,6 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(12);
     }
 }
