@@ -11,6 +11,7 @@ import com.kad.jet.user.repository.UserRepository;
 import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -21,7 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserAuthServiceImp implements UserAuthService{
@@ -161,6 +164,95 @@ public class UserAuthServiceImp implements UserAuthService{
 
         //return response
         return UserMapper.toDto(saveNewUserAccount);
+    }
+
+    @Override
+    @Transactional
+    public void banUser(_User currentUser, UUID userId) {
+
+        if (!RoleChecker.hasAnyRole(currentUser,
+                UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)){
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "unauthorized request"
+            );
+        }
+
+        _User target = userRepository.findById(userId)
+                .orElseThrow(()-> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "target user not found"
+                ));
+
+        if (target.getUserRole() == UserRole.SUPER_ADMIN){
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "you can not ban admin user"
+            );
+        }
+
+        if (target.getIsBanned()){
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "user already ban"
+            );
+        }
+
+        target.setIsBanned(true);
+        userRepository.save(target);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse unbanUser(_User currentUser, UUID userId) {
+        if (!RoleChecker.hasAnyRole(currentUser,
+                UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)){
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "unauthorized request"
+            );
+        }
+
+        _User target = userRepository.findById(userId)
+                .orElseThrow(()-> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "target user not found"
+                ));
+
+        if (!target.getIsBanned()){
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "user not ban"
+            );
+        }
+
+        target.setIsBanned(false);
+        userRepository.save(target);
+
+        return UserMapper.toDto(target);
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(ChangePasswordRequest passwordRequest, _User currentUser) {
+
+        if (!passwordEncoder.matches(passwordRequest.getOldPassword(),
+                currentUser.getPassword())){
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "old password incorrect"
+            );
+        }
+
+        log.info("user with email: {} " +
+                "changed password", currentUser.getEmail());
+
+        currentUser.setPassword(passwordEncoder.encode(passwordRequest.getNewPassword()));
+        currentUser.setUpdateAt(LocalDateTime.now());
+
+        userRepository.save(currentUser);
+
     }
 
 

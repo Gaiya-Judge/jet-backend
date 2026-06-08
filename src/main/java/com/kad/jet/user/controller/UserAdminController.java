@@ -9,10 +9,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("api/user")
@@ -28,4 +27,30 @@ public class UserAdminController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(response);
     }
+
+    @PatchMapping("/{id}/ban")
+    public ResponseEntity<?> banUser(
+            @AuthenticationPrincipal _User currentUser,
+            @PathVariable(name = "id")UUID userId
+            ){
+
+        userAuthService.banUser(currentUser, userId);
+
+        return ResponseEntity.ok(
+                "user with id " + userId +
+                "is ban"
+        );
+    }
+
+    @PatchMapping("/{id}/unban")
+    public ResponseEntity<?> unbanUser(
+            @AuthenticationPrincipal _User currentUser,
+            @PathVariable UUID id
+    ){
+        UserResponse response =
+                userAuthService.unbanUser(currentUser, id);
+
+        return ResponseEntity.ok(response);
+    }
+
 }

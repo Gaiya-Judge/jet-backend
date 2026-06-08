@@ -31,3 +31,6 @@ admin:
 paystack:
   secret-key: ${PAYSTACK_SECRET_KEY:sk_test_cfa51d4dfba92fa5c0a013188e92d4a6eeef1cc7}
   base-url: https://api.paystack.co
+
+app:
+  public-url: ${RENDER_EXTERNAL_URL:http://localhost:8080}

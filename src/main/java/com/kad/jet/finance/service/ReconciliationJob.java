@@ -54,7 +54,8 @@ public class ReconciliationJob {
 
                 String reference = payment.getPaystackReference();
 
-                Map<String, Object> paystackData = paystackClient.verifyTransaction(reference);
+                Map<String, Object> paystackData =
+                        paystackClient.verifyTransaction(reference);
 
                 String status = (String) paystackData.get("status");
 
@@ -165,8 +166,7 @@ public class ReconciliationJob {
                 .valueOf(((Number) amountObj).longValue())
                 .divide(BigDecimal.valueOf(100));
 
-        if (paidAmountNaira.compareTo(BigDecimal.ZERO) != 0){
-
+        if (paidAmountNaira.compareTo(payment.getAmount()) != 0){
             log.error("Amount mismatch for reconciliation " +
                     "for reference {}. expected: {}. got {} ",
                     payment.getPaystackReference(),

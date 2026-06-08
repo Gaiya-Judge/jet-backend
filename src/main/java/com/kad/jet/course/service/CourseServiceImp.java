@@ -35,8 +35,6 @@ public class CourseServiceImp implements CourseService {
     @Override
     public CourseResponse createCourse(CreateCourseRequest request, _User currentUser) {
 
-        System.out.println("department id " + request.getDepartmentId());
-
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.SUPER_ADMIN, UserRole.HOD, UserRole.IT_ADMIN)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
         }

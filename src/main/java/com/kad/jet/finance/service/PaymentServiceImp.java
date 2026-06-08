@@ -132,6 +132,12 @@ public class PaymentServiceImp implements PaymentService {
         log.info("Webhook received. Event: {} Reference: {}",
                 event, reference);
 
+        if ("charge.success".equals(event)
+                && webhookEventRepository.existsByReference(reference)) {
+            log.info("Duplicate webhook for reference: {}. Skipping.", reference);
+            return;
+        }
+
         // Step 3 — persist raw event BEFORE processing
         WebhookEvent webhookEvent = WebhookEvent.builder()
                 .provider("PAYSTACK")
@@ -217,6 +223,7 @@ public class PaymentServiceImp implements PaymentService {
                 // Status is PENDING until Bursar manually verifies
                 .tellerImageUrl(request.getTellerImageUrl())
                 .initiatedAt(LocalDateTime.now())
+                .expiresAt(LocalDateTime.now().plusDays(7))
                 .build();
 
         log.info("Bank transfer submitted by student {}. " +
@@ -420,7 +427,7 @@ public class PaymentServiceImp implements PaymentService {
                         //converting the naira to kobo
                         .divide(BigDecimal.valueOf(100));
 
-                if (paidAmountNaira.compareTo(BigDecimal.ZERO) != 0){
+                if (paidAmountNaira.compareTo(payment.getAmount()) != 0){
                     log.error("Amount mismatch on manual verify " +
                                     "for reference {}. " +
                                     "Expected: ₦{} Got: ₦{}",
@@ -763,36 +770,6 @@ public class PaymentServiceImp implements PaymentService {
                                 "special payment arrangements.");
             }
         }
-
-//        // Cannot pay more than what is owed
-//        if (amount.compareTo(account.getBalance()) > 0) {
-//            throw new ResponseStatusException(
-//                    HttpStatus.BAD_REQUEST,
-//                    "payment amount ₦" + amount +
-//                            " exceeds outstanding balance ₦" +
-//                            account.getBalance());
-//        }
-//
-//        // First payment must meet the configured minimum percentage
-//        // If any payment has been made before — this check is skipped
-//        // The remaining balance can be paid in any amount
-//        if (account.getTotalPaid()
-//                .compareTo(BigDecimal.ZERO) == 0) {
-//
-//            int minPercentage = systemConfigService.getIntValue(
-//                    SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
-//
-//            if (amount.compareTo(
-//                    account.getMinimumPayment()) < 0) {
-//                throw new ResponseStatusException(
-//                        HttpStatus.BAD_REQUEST,
-//                        "minimum first payment is ₦" +
-//                                account.getMinimumPayment() +
-//                                " (" + minPercentage + "% of total due ₦" +
-//                                account.getTotalDue() + "). " +
-//                                "you attempted to pay ₦" + amount);
-//            }
-//        }
     }
 
     private TuitionAccount findTuitionAccount(UUID id) {
