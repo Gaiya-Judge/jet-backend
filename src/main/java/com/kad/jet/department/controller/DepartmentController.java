@@ -32,7 +32,10 @@ public class DepartmentController {
     @GetMapping
     public ResponseEntity<?> getAllDepartment(@RequestParam(defaultValue = "10") int size,
                                               @RequestParam(defaultValue = "0") int page){
-        DepartmentPageResponse<DepartmentResponse> response = departmentService.getAllDepartment(size, page);
+
+        DepartmentPageResponse<DepartmentResponse> response =
+                departmentService
+                        .getAllDepartment(size, page);
 
         return ResponseEntity.ok(response);
     }
@@ -41,13 +44,14 @@ public class DepartmentController {
     public ResponseEntity<?> getById(@PathVariable(name = "id")UUID departmentId){
         DepartmentResponse response = departmentService.getDepartment(departmentId);
 
-        return ResponseEntity.status(HttpStatus.FOUND)
-                .body(response);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/program/{id}")
     public ResponseEntity<?> getByDepartmentByProgram(@PathVariable(name = "id") UUID programId){
-        List<DepartmentResponse> response = departmentService.getProgramDepartments(programId);
+
+        List<DepartmentResponse> response =
+                departmentService.getProgramDepartments(programId);
 
         return ResponseEntity.ok(response);
     }
@@ -65,7 +69,8 @@ public class DepartmentController {
     public ResponseEntity<?> updateDepartment(@PathVariable(name = "id") UUID departmentId,
                                               @AuthenticationPrincipal _User currentUser,
                                               @RequestBody UpdateDepartmentRequest departmentRequest){
-        DepartmentResponse response = departmentService.updateDepartment(currentUser, departmentId, departmentRequest);
+        DepartmentResponse response =
+                departmentService.updateDepartment(currentUser, departmentId, departmentRequest);
 
         return ResponseEntity.ok()
                 .body(response);
@@ -75,7 +80,9 @@ public class DepartmentController {
     public ResponseEntity<?> assignHod(@AuthenticationPrincipal _User currentUser,
                                        @PathVariable(name = "id") UUID departmentId,
                                        @RequestBody @Valid AssignHodToDepartment assignHodToDepartment){
-        DepartmentResponse response = departmentService.assignHod(currentUser, departmentId, assignHodToDepartment);
+
+        DepartmentResponse response =
+                departmentService.assignHod(currentUser, departmentId, assignHodToDepartment);
 
         return ResponseEntity.ok()
                 .body(response);
@@ -85,7 +92,9 @@ public class DepartmentController {
     public ResponseEntity<?> getAllDepartment(@AuthenticationPrincipal _User currentUser,
                                               @RequestParam(defaultValue = "10") int size,
                                               @RequestParam(defaultValue = "0") int page){
-        DepartmentPageResponse<DepartmentResponse> response = departmentService.adminGetAllDepartment(size, page, currentUser);
+
+        DepartmentPageResponse<DepartmentResponse> response =
+                departmentService.adminGetAllDepartment(size, page, currentUser);
 
         return ResponseEntity.ok()
                 .body(response);
@@ -94,7 +103,9 @@ public class DepartmentController {
     @GetMapping("/program/{id}/all")
     public ResponseEntity<?> getProgramDepartments(@AuthenticationPrincipal _User currentUser,
                                                    @PathVariable(name = "id")UUID programId){
-        List<DepartmentResponse> response = departmentService.adminGetProgramDepartments(programId, currentUser);
+
+        List<DepartmentResponse> response =
+                departmentService.adminGetProgramDepartments(programId, currentUser);
 
         return ResponseEntity.ok()
                 .body(response);
@@ -103,7 +114,9 @@ public class DepartmentController {
     @GetMapping("/{id}/all")
     public ResponseEntity<?> adminGetDepartment(@AuthenticationPrincipal _User currentUser,
                                                 @PathVariable(name = "id") UUID departmentId){
-        DepartmentResponse response = departmentService.adminGetDepartment(departmentId, currentUser);
+
+        DepartmentResponse response =
+                departmentService.adminGetDepartment(departmentId, currentUser);
 
         return ResponseEntity.status(HttpStatus.FOUND)
                 .body(response);

@@ -351,13 +351,24 @@ public class RegistrationServiceImp implements RegistrationService{
 
         Registration registration = findById(registrationId);
 
-        System.out.println("after checking if registration exists");
         if (registration.getStatus() !=
                 RegistrationStatus.PENDING_DEAN) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "only PENDING_DEAN registrations can be approved");
         }
+
+        StudentProfile studentProfile = getStudentProfile(
+                registration.getStudent().getId());
+
+        feeStructureRepository.findBySemesterIdAndProgramId(
+                        registration.getSemester().getId(),
+                        studentProfile.getProgram().getId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Cannot approve: fee structure is not configured for "
+                                + studentProfile.getProgram().getName()
+                                + " this semester. Ask the Bursar to set fees first."));
 
         registration.setStatus(RegistrationStatus.APPROVED);
         registration.setDeanReviewAt(LocalDateTime.now());
@@ -646,6 +657,7 @@ public class RegistrationServiceImp implements RegistrationService{
     }
 
     @Override
+    @Transactional
     public AddDropResponse addCourseDuringAddDrop(_User currentUser, UUID registrationId, AddDropCourseRequest request) {
         if (!RoleChecker.hasAnyRole(currentUser,
                 UserRole.STUDENT, UserRole.IT_ADMIN,
@@ -1094,11 +1106,13 @@ public class RegistrationServiceImp implements RegistrationService{
     }
 
     private int getMaxCreditUnits() {
-        return 18;
+        return systemConfigService
+                .getIntValue(SystemConfigKeys.MAX_CREDIT_UNITS);
     }
 
     private int getMinCreditUnits() {
-        return 2;
+        return systemConfigService
+                .getIntValue(SystemConfigKeys.MIN_CREDIT_UNITS);
     }
 
     private void validateCreditUnitLimits(Integer totalCreditUnits) {
