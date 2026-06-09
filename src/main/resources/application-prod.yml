@@ -16,9 +16,6 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
-server:
-  port: 8080
-
 jwt:
   secret: ${JWT_SECRETKEY}
   expiration-ms: 900000
