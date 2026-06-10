@@ -1,6 +1,5 @@
 package com.kad.jet.report.dto;
 
-import com.kad.jet.finance.model.WaiverType;
 import lombok.Builder;
 import lombok.Data;
 

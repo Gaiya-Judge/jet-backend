@@ -1,9 +1,0 @@
-SPRING_DATASOURCE_URL=jdbc:postgresql://aws-1-eu-central-1.pooler.supabase.com:5432/postgres?sslmode=require
-DB_PASSWORD=jet.backend.db.1
-DB_USERNAME=postgres.uoocgovdispeboqrmtlo
-SPRING_PROFILE=prod
-ADMIN_PASSWORD=justin11
-ADMIN_EMAIL=jtee11
-JWT_SECRETKEY=404D635166546A576E5A7234753778214125442A472D4B6150645367566B5970
-PAYSTACK_SECRET_KEY=pk_live_6f97201998450c66bcf2a3b0001177b981ec8804
-RENDER_EXTERNAL_URL=jet-backend.onrender.com

@@ -10,7 +10,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -22,8 +22,8 @@ jwt:
   refresh-expiration-ms: 604800000
 
 admin:
-  email: admin1@jet.com
-  password: admin123
+  email: ${ADMIN_EMAIL}
+  password: ${ADMIN_PASSWORD}
 
 paystack:
   secret-key: ${PAYSTACK_SECRET_KEY}

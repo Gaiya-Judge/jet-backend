@@ -118,7 +118,7 @@ public class DepartmentController {
         DepartmentResponse response =
                 departmentService.adminGetDepartment(departmentId, currentUser);
 
-        return ResponseEntity.status(HttpStatus.FOUND)
+        return ResponseEntity.ok()
                 .body(response);
     }
 }

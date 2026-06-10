@@ -7,5 +7,5 @@ import lombok.Data;
 public class UpdateSemesterRequest {
 
     @NotBlank(message = "academy year required")
-    private String academyYear;
+    private String academicYear;
 }

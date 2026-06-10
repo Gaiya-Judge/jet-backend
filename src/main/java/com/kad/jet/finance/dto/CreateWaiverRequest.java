@@ -1,6 +1,5 @@
 package com.kad.jet.finance.dto;
 
-import com.kad.jet.finance.model.WaiverType;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 

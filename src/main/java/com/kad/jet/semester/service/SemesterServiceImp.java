@@ -35,17 +35,17 @@ public class SemesterServiceImp implements SemesterService {
         }
 
         if (semesterRepository.existsByAcademicYearAndSemesterType(
-                semesterRequest.getAcademyYear(), semesterRequest.getSemesterType())){
+                semesterRequest.getAcademicYear(), semesterRequest.getSemesterType())){
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "A " + semesterRequest.getSemesterType() +
                     " already exists for " +
-                    semesterRequest.getAcademyYear());
+                    semesterRequest.getAcademicYear());
         }
 
         Semester semester = Semester
                 .builder()
                 .semesterType(semesterRequest.getSemesterType())
-                .academicYear(semesterRequest.getAcademyYear())
+                .academicYear(semesterRequest.getAcademicYear())
                 .createdAt(LocalDateTime.now())
                 .status(SemesterStatus.UPCOMING)
                 .build();
@@ -90,7 +90,7 @@ public class SemesterServiceImp implements SemesterService {
                     "you cannot update a closed semester");
         }
 
-        semester.setAcademicYear(updateSemester.getAcademyYear());
+        semester.setAcademicYear(updateSemester.getAcademicYear());
 
         semesterRepository.save(semester);
         return SemesterMapper.toDto(semester);

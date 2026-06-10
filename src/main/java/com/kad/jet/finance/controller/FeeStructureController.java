@@ -49,7 +49,7 @@ public class FeeStructureController {
                 .body(response);
     }
 
-    @GetMapping("semester/{semesterId}")
+    @GetMapping("/semester/{semesterId}")
     public ResponseEntity<?> getFeeStructureBySemester(@PathVariable UUID semesterId){
         List<FeeStructureResponse> responses = feeStructureService.getFeeStructureBySemester(semesterId);
 

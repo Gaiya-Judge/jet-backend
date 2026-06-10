@@ -78,7 +78,7 @@ public class ProgramController {
     public ResponseEntity<?> getProgram(@PathVariable(name = "id") UUID programId, @AuthenticationPrincipal _User currentUser){
         ProgramResponse response = programService.getProgramById(programId, currentUser);
 
-        return ResponseEntity.status(HttpStatus.FOUND)
+        return ResponseEntity.ok()
                 .body(response);
     }
 }

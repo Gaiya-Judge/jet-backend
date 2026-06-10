@@ -59,6 +59,7 @@ Thumbs.db
 # =========================
 *.log
 .env
+.
 
-src/main/resources/application-dev.yml
+productionFile
 src/main/resources/application-local.yml

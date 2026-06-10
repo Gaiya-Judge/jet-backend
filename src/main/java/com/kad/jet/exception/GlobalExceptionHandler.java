@@ -34,7 +34,7 @@ public class GlobalExceptionHandler {
                 .getFieldErrors()
                 .stream()
                 .map(err-> err.getField() + ": " + err.getDefaultMessage())
-                .collect(Collectors.joining());
+                .collect(Collectors.joining("; "));
 
         return ResponseEntity.badRequest()
                 .body(new ErrorResponse(

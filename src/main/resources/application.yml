@@ -3,4 +3,4 @@ spring:
     name: jet
 
   profiles:
-    active: ${SPRING_PROFILE:dev}
+    active: ${SPRING_PROFILE:local}

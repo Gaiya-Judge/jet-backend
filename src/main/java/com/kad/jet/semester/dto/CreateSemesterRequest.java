@@ -9,7 +9,7 @@ import lombok.Data;
 public class CreateSemesterRequest {
 
     @NotBlank(message = "Academic year is required")
-    private String academyYear;
+    private String academicYear;
 
     @NotNull(message = "semester type is required")
     private SemesterType semesterType;

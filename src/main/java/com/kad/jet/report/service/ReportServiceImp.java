@@ -430,19 +430,19 @@ public class ReportServiceImp implements ReportService {
                 .count();
     }
 
-    private BigDecimal computeWaiverAmount(
-            WaiverType type,
-            BigDecimal value,
-            BigDecimal totalDue) {
-
-        if (type == WaiverType.PERCENTAGE) {
-            return totalDue
-                    .multiply(value)
-                    .divide(BigDecimal.valueOf(100))
-                    .setScale(2, RoundingMode.HALF_UP);
-        }
-        return value.setScale(2, RoundingMode.HALF_UP);
-    }
+//    private BigDecimal computeWaiverAmount(
+//            WaiverType type,
+//            BigDecimal value,
+//            BigDecimal totalDue) {
+//
+//        if (type == WaiverType.PERCENTAGE) {
+//            return totalDue
+//                    .multiply(value)
+//                    .divide(BigDecimal.valueOf(100))
+//                    .setScale(2, RoundingMode.HALF_UP);
+//        }
+//        return value.setScale(2, RoundingMode.HALF_UP);
+//    }
 
     private Semester findSemester(UUID semesterId) {
         return semesterRepository.findById(semesterId)

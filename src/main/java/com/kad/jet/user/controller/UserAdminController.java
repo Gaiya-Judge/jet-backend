@@ -45,10 +45,10 @@ public class UserAdminController {
     @PatchMapping("/{id}/unban")
     public ResponseEntity<?> unbanUser(
             @AuthenticationPrincipal _User currentUser,
-            @PathVariable UUID id
+            @PathVariable(name = "id") UUID userId
     ){
         UserResponse response =
-                userAuthService.unbanUser(currentUser, id);
+                userAuthService.unbanUser(currentUser, userId);
 
         return ResponseEntity.ok(response);
     }

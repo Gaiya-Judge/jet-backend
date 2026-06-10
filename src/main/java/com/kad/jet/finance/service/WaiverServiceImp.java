@@ -7,7 +7,6 @@ import com.kad.jet.finance.dto.WaiverResponse;
 import com.kad.jet.finance.model.TuitionAccount;
 import com.kad.jet.finance.model.TuitionAccountStatus;
 import com.kad.jet.finance.model.Waiver;
-import com.kad.jet.finance.model.WaiverType;
 import com.kad.jet.finance.repository.TuitionAccountRepository;
 import com.kad.jet.finance.repository.WaiverRepository;
 import com.kad.jet.student.model.StudentProfile;

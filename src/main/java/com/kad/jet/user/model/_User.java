@@ -35,7 +35,7 @@ public class _User implements UserDetails {
     private String email;
 
     @JsonIgnore
-    @Column(nullable = false, name = "password_hashed")
+    @Column(nullable = false, name = "password_hash")
     private String password;
 
     @Enumerated(EnumType.STRING)
