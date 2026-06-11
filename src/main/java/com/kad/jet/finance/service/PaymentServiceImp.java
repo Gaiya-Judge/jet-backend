@@ -52,6 +52,7 @@ public class PaymentServiceImp implements PaymentService {
     private final PaystackClient paystackClient;
     private final PaystackConfig paystackConfig;
     private final ObjectMapper objectMapper;
+    private final InternalPaymentHelperService internalPaymentHelperService;
 
     @Override
     public InitiatePaymentResponse initiatePayment(_User currentUser, InitiatePaymentRequest request) {
@@ -89,7 +90,7 @@ public class PaymentServiceImp implements PaymentService {
                         reference);
 
         // SHORT transaction — just save the payment record
-        saveInitiatedPayment(
+        internalPaymentHelperService.saveInitiatedPayment(
                 tuitionAccount,
                 request.getAmount(),
                 reference);
@@ -567,29 +568,6 @@ public class PaymentServiceImp implements PaymentService {
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "webhook verification failed");
         }
-    }
-
-    @Transactional
-    protected void saveInitiatedPayment(
-            TuitionAccount tuitionAccount,
-            BigDecimal amount,
-            String reference) {
-
-        Payment payment = Payment.builder()
-                .tuitionAccount(tuitionAccount)
-                .idempotencyKey(reference)
-                .amount(amount)
-                .paymentMethod(PaymentMethod.PAYSTACK)
-                .status(PaymentStatus.PENDING)
-                .paystackReference(reference)
-                .initiatedAt(LocalDateTime.now())
-                .expiresAt(LocalDateTime.now().plusMinutes(30))
-                .build();
-
-        paymentRepository.save(payment);
-
-        log.info("Payment record saved. Reference: {} Status: PENDING",
-                reference);
     }
 
     private String generatePaymentReference() {
