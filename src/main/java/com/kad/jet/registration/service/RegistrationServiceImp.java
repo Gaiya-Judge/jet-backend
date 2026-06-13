@@ -876,18 +876,22 @@ public class RegistrationServiceImp implements RegistrationService{
         }
 
         // Build appropriate message based on scenario
-        String message;
-        if (creditToGenerate.compareTo(BigDecimal.ZERO) > 0) {
-            message = "course " + courseCode +
-                    " dropped successfully. " +
-                    "₦" + creditToGenerate +
-                    " credit has been added to your account " +
-                    "and will be applied to your next semester fees.";
-        } else {
-            message = "course " + courseCode +
-                    " dropped successfully. " +
-                    "your new total fees are ₦" + newTotalDue;
-        }
+//        String message;
+//        if (creditToGenerate.compareTo(BigDecimal.ZERO) > 0) {
+//            message = "course " + courseCode +
+//                    " dropped successfully. " +
+//                    "₦" + creditToGenerate +
+//                    " credit has been added to your account " +
+//                    "and will be applied to your next semester fees.";
+//        } else {
+//            message = "course " + courseCode +
+//                    " dropped successfully. " +
+//                    "your new total fees are ₦" + newTotalDue;
+//        }
+
+        String message = creditToGenerate.compareTo(BigDecimal.ZERO) > 0
+                ? "Course dropped successfully. ₦" + creditToGenerate + " has been added as a credit balance for next semester."
+                : "Course dropped successfully. Your outstanding balance has been reduced by ₦" + refundAmount + ".";
 
         log.info("Course {} dropped during add/drop for " +
                         "registration {}. Credit generated: ₦{}",
@@ -898,11 +902,7 @@ public class RegistrationServiceImp implements RegistrationService{
                 .previousTotalDue(previousTotalDue)
                 .newTotalDue(newTotalDue)
                 .difference(refundAmount.negate())
-                .message("course " + courseCode +
-                        " dropped successfully. " +
-                        "₦" + refundAmount +
-                        " has been added as a credit balance " +
-                        "for your next semester.")
+                .message(message)
                 .build();
 
     }

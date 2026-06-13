@@ -53,6 +53,7 @@ public class PaymentServiceImp implements PaymentService {
     private final PaystackConfig paystackConfig;
     private final ObjectMapper objectMapper;
     private final InternalPaymentHelperService internalPaymentHelperService;
+    private final TuitionAccountDomainService tuitionAccountDomainService;
 
     @Override
     public InitiatePaymentResponse initiatePayment(_User currentUser, InitiatePaymentRequest request) {
@@ -277,7 +278,7 @@ public class PaymentServiceImp implements PaymentService {
 
         // Update tuition account balance and
         // complete registration if threshold met
-        updateTuitionAccount(payment);
+        tuitionAccountDomainService.updateTuitionAccount(payment);
 
         return PaymentMapper.toDto(payment);
     }
@@ -445,7 +446,7 @@ public class PaymentServiceImp implements PaymentService {
                 payment.setVerifiedAt(LocalDateTime.now());
                 paymentRepository.save(payment);
 
-                updateTuitionAccount(payment);
+                tuitionAccountDomainService.updateTuitionAccount(payment);
 
                 log.info("Payment {} verified via manual check. " +
                         "Amount: ₦{}", reference, paidAmountNaira);
@@ -464,60 +465,6 @@ public class PaymentServiceImp implements PaymentService {
         }
 
         return PaymentMapper.toDto(payment);
-    }
-
-    protected void updateTuitionAccount(Payment payment) {
-
-        TuitionAccount account = payment.getTuitionAccount();
-
-        if (account.getTuitionAccountStatus() == TuitionAccountStatus.PAID) {
-            log.warn("Webhook arrived for already PAID account {}. " +
-                            "Reference: {}. No changes made.",
-                    account.getId(),
-                    payment.getPaystackReference());
-            return;
-        }
-
-        // totalPaid always reflects actual cash received
-        BigDecimal newTotalPaid = account.getTotalPaid()
-                .add(payment.getAmount());
-
-        account.setTotalPaid(newTotalPaid);
-
-        // Balance derived — floors at zero
-        BigDecimal newBalance = account.getTotalDue()
-                .subtract(newTotalPaid);
-
-        if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-            newBalance = BigDecimal.ZERO;
-        }
-
-        account.setBalance(newBalance);
-
-        // Determine status
-        if (newBalance.compareTo(BigDecimal.ZERO) == 0) {
-            // Fully paid
-            account.setTuitionAccountStatus(TuitionAccountStatus.PAID);
-
-        } else if (newTotalPaid.compareTo(
-                account.getMinimumPayment()) >= 0) {
-
-            // Met the minimum payment threshold
-            // This reads account.getMinimumPayment() directly
-            // which already reflects any waiver applied
-            // No need to recalculate from system config here
-            // If waiver reduced minimumPayment to 40%
-            // this check respects that automatically
-            account.setTuitionAccountStatus(TuitionAccountStatus.PARTIAL);
-        }
-
-        tuitionAccountRepository.save(account);
-
-        if (account.getTuitionAccountStatus() == TuitionAccountStatus.PAID ||
-                account.getTuitionAccountStatus() ==
-                        TuitionAccountStatus.PARTIAL) {
-            completeRegistration(account);
-        }
     }
 
     private void completeRegistration(TuitionAccount account) {
@@ -649,7 +596,7 @@ public class PaymentServiceImp implements PaymentService {
         paymentRepository.save(payment);
 
         // Update tuition account and complete registration
-        updateTuitionAccount(payment);
+        tuitionAccountDomainService.updateTuitionAccount(payment);
 
         log.info("Payment {} verified successfully. Amount: ₦{}",
                 reference, paidAmountNaira);

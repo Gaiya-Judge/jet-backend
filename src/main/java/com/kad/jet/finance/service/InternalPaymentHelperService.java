@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 public class InternalPaymentHelperService {
 
     private final PaymentRepository paymentRepository;
+    private final TuitionAccountDomainService tuitionAccountDomainService;
 
     @Transactional
     public void saveInitiatedPayment(
@@ -42,5 +44,44 @@ public class InternalPaymentHelperService {
         log.info("Payment record saved. Reference: {} Status: PENDING", reference);
     }
 
+    @Transactional
+    public void markPaymentFailed(Payment payment){
+        payment.setStatus(PaymentStatus.FAILED);
+        paymentRepository.save(payment);
 
+        log.info("payment {} marked FAILED by reconciliation job ",
+                payment.getPaystackReference());
+    }
+
+    @Transactional
+    public void processVerifiedPayment(Payment payment, Map<String, Object> paystackData){
+
+        //get amount
+        Object amountObj = paystackData.get("amount");
+        BigDecimal paidAmountNaira = BigDecimal
+                .valueOf(((Number) amountObj).longValue())
+                .divide(BigDecimal.valueOf(100));
+
+        if (paidAmountNaira.compareTo(payment.getAmount()) != 0){
+            log.error("Amount mismatch for reconciliation " +
+                            "for reference {}. expected: {}. got {} ",
+                    payment.getPaystackReference(),
+                    payment.getAmount(),
+                    paidAmountNaira);
+            markPaymentFailed(payment);
+            return;
+        }
+
+        payment.setStatus(PaymentStatus.VERIFIED);
+        payment.setVerifiedAt(LocalDateTime.now());
+        paymentRepository.save(payment);
+
+        tuitionAccountDomainService.updateTuitionAccount(payment);
+
+        log.info("Payment {} verified via reconciliation. " +
+                        "Amount: ₦{}",
+                payment.getPaystackReference(),
+                paidAmountNaira);
+
+    }
 }

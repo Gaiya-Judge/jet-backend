@@ -142,20 +142,27 @@ public class SemesterServiceImp implements SemesterService {
 
         LocalDate today = LocalDate.now();
 
-        if (addDropRequest.getAddDropStart().isBefore(today)){
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "add and drop cannot be before today"
-            );
+        //Only validate start date if it's changing OR if it's not already set
+        if (addDropRequest.getAddDropStart() != null &&
+                !addDropRequest.getAddDropStart().isEqual(semester.getAddDropStart())) {
+
+            if (addDropRequest.getAddDropStart().isBefore(LocalDate.now())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Add and drop start date cannot be set to a past date");
+            }
         }
 
-        if (addDropRequest.getAddDropEnd().isBefore(today)){
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "add and drop cannot be before today"
-            );
+        //Only validate end date if it's changing OR if it's not already set
+        if (addDropRequest.getAddDropEnd() != null &&
+                !addDropRequest.getAddDropEnd().isEqual(semester.getAddDropEnd())) {
+
+            if (addDropRequest.getAddDropEnd().isBefore(LocalDate.now())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Add and drop end date cannot be set to a past date");
+            }
         }
 
+        //Logic check: End must be after Start
         if (!addDropRequest.getAddDropEnd().isAfter(addDropRequest.getAddDropStart())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Add drop end date must be after start date");
@@ -163,8 +170,7 @@ public class SemesterServiceImp implements SemesterService {
 
         if (semester.getStatus() != SemesterStatus.ACTIVE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Can only configure add/drop window " +
-                            "for an active semester");
+                    "Can only configure add/drop window for an active semester");
         }
 
         semester.setAddDropStart(addDropRequest.getAddDropStart());
