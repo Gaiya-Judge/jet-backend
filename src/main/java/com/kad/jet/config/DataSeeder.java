@@ -51,7 +51,6 @@ public class DataSeeder implements CommandLineRunner {
             log.info("================================================");
             log.info("Super Admin seeded successfully");
             log.info("Email   : {} ", superAdminEmail);
-            log.info("Password: {} ", superAdminPassword);
             log.info("Change this password immediately in production");
             log.info("================================================");
         }

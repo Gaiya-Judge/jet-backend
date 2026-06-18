@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -106,27 +107,34 @@ public class SemesterServiceImp implements SemesterService {
         }
 
         Semester semester = findById(semesterId);
+        SemesterStatus newStatus = semesterStatusRequest.getStatus();
 
-        if (semester.getStatus() == SemesterStatus.CLOSED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Cannot change status of a closed semester");
+        // 1. Skip if no status change is needed
+        if (semester.getStatus() == newStatus) {
+            return SemesterMapper.toDto(semester);
         }
 
-        if (semesterStatusRequest.getStatus() == SemesterStatus.ACTIVE) {
+        // 2. Enforce Logical Transitions
+        boolean isValidTransition = (semester.getStatus() == SemesterStatus.UPCOMING && newStatus == SemesterStatus.ACTIVE) ||
+                (semester.getStatus() == SemesterStatus.ACTIVE && newStatus == SemesterStatus.CLOSED);
+
+        if (!isValidTransition) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid status transition");
+        }
+
+        // 3. Conflict Check (Exclude self!)
+        if (newStatus == SemesterStatus.ACTIVE) {
             semesterRepository.findByStatus(SemesterStatus.ACTIVE)
                     .ifPresent(existing -> {
-                        throw new ResponseStatusException(
-                                HttpStatus.CONFLICT,
-                                "Semester " + existing.getAcademicYear() +
-                                        " " + existing.getSemesterType() +
-                                        " is already active. " +
-                                        "Close it before activating another.");
+                        // Only throw if the found 'existing' semester is NOT the one we are editing
+                        if (!existing.getId().equals(semesterId)) {
+                            throw new ResponseStatusException(HttpStatus.CONFLICT, "Another semester is already active.");
+                        }
                     });
         }
 
-        semester.setStatus(semesterStatusRequest.getStatus());
+        semester.setStatus(newStatus);
         semesterRepository.save(semester);
-
         return SemesterMapper.toDto(semester);
     }
 
@@ -142,9 +150,8 @@ public class SemesterServiceImp implements SemesterService {
 
         LocalDate today = LocalDate.now();
 
-        //Only validate start date if it's changing OR if it's not already set
         if (addDropRequest.getAddDropStart() != null &&
-                !addDropRequest.getAddDropStart().isEqual(semester.getAddDropStart())) {
+                !Objects.equals(addDropRequest.getAddDropStart(), semester.getAddDropStart())) {
 
             if (addDropRequest.getAddDropStart().isBefore(LocalDate.now())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -152,9 +159,8 @@ public class SemesterServiceImp implements SemesterService {
             }
         }
 
-        //Only validate end date if it's changing OR if it's not already set
         if (addDropRequest.getAddDropEnd() != null &&
-                !addDropRequest.getAddDropEnd().isEqual(semester.getAddDropEnd())) {
+                !Objects.equals(addDropRequest.getAddDropEnd(), semester.getAddDropEnd())) {
 
             if (addDropRequest.getAddDropEnd().isBefore(LocalDate.now())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

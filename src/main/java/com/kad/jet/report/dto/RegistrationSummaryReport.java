@@ -15,7 +15,6 @@ public class RegistrationSummaryReport {
     private Integer draftCount;
     private Integer pendingDeanCount;
     private Integer approvedCount;
-    private Integer rejectedCount;
     private Integer completedCount;
     private List<RegistrationSummaryEntry> entries;
 }

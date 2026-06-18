@@ -16,6 +16,7 @@ public class PaymentResponse {
     private UUID id;
     private UUID tuitionAccountId;
     private String idempotencyKey;
+    private Boolean appliedToAccount;
     private BigDecimal amount;
     private PaymentMethod paymentMethod;
     private PaymentStatus status;

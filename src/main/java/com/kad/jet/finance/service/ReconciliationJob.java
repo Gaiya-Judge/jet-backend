@@ -143,7 +143,15 @@ public class ReconciliationJob {
                                             event.getReference(),
                                             e.getMessage());
                                 }
-                            } else {
+                            } else if (payment.getStatus().equals(PaymentStatus.VERIFIED) &&
+                                    !Boolean.TRUE.equals(payment.getAppliedToAccount())){
+
+                                paymentHelperService.applyVerifiedPayment(payment);
+                                event.setProcessed(true);
+                                event.setProcessedAt(LocalDateTime.now());
+                                webhookEventRepository.save(event);
+
+                            }else {
                                 event.setProcessed(true);
                                 event.setProcessedAt(LocalDateTime.now());
                                 webhookEventRepository

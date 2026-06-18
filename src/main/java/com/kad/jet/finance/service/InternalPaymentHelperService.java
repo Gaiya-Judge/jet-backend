@@ -23,7 +23,7 @@ public class InternalPaymentHelperService {
     private final TuitionAccountDomainService tuitionAccountDomainService;
 
     @Transactional
-    public void saveInitiatedPayment(
+    public Payment saveInitiatedPayment(
             TuitionAccount tuitionAccount,
             BigDecimal amount,
             String reference) {
@@ -42,6 +42,7 @@ public class InternalPaymentHelperService {
         paymentRepository.save(payment);
 
         log.info("Payment record saved. Reference: {} Status: PENDING", reference);
+        return payment;
     }
 
     @Transactional
@@ -50,6 +51,15 @@ public class InternalPaymentHelperService {
         paymentRepository.save(payment);
 
         log.info("payment {} marked FAILED by reconciliation job ",
+                payment.getPaystackReference());
+    }
+
+    @Transactional
+    public void applyVerifiedPayment(Payment payment) {
+        tuitionAccountDomainService
+                .updateTuitionAccountAndProcessRegistration(payment.getId());
+
+        log.info("Verified payment {} applied to tuition account.",
                 payment.getPaystackReference());
     }
 
@@ -76,7 +86,7 @@ public class InternalPaymentHelperService {
         payment.setVerifiedAt(LocalDateTime.now());
         paymentRepository.save(payment);
 
-        tuitionAccountDomainService.updateTuitionAccount(payment);
+        tuitionAccountDomainService.updateTuitionAccountAndProcessRegistration(payment.getId());
 
         log.info("Payment {} verified via reconciliation. " +
                         "Amount: ₦{}",

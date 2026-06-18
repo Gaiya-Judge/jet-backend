@@ -3,15 +3,18 @@ package com.kad.jet.finance.service;
 import com.kad.jet.finance.model.Payment;
 import com.kad.jet.finance.model.TuitionAccount;
 import com.kad.jet.finance.model.TuitionAccountStatus;
+import com.kad.jet.finance.repository.PaymentRepository;
 import com.kad.jet.finance.repository.TuitionAccountRepository;
 import com.kad.jet.registration.model.Registration;
 import com.kad.jet.registration.model.RegistrationStatus;
 import com.kad.jet.registration.repository.RegistrationRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -20,8 +23,19 @@ public class TuitionAccountDomainService {
 
     private final TuitionAccountRepository tuitionAccountRepository;
     private final RegistrationRepository registrationRepository;
+    private final PaymentRepository paymentRepository;
 
-    protected void updateTuitionAccount(Payment payment) {
+    @Transactional
+    public void updateTuitionAccountAndProcessRegistration(UUID paymentId) {
+
+        // 1. Pessimistic Lock: This forces other threads to wait!
+        Payment payment = paymentRepository.findByIdWithLock(paymentId)
+                .orElseThrow(() -> new RuntimeException("Payment not found"));
+
+        if (Boolean.TRUE.equals(payment.getAppliedToAccount())) {
+            log.warn("Payment {} already applied. Skipping.", payment.getPaystackReference());
+            return;
+        }
 
         TuitionAccount account = payment.getTuitionAccount();
 
@@ -30,6 +44,9 @@ public class TuitionAccountDomainService {
                             "Reference: {}. No changes made.",
                     account.getId(),
                     payment.getPaystackReference());
+
+            payment.setAppliedToAccount(true);
+            paymentRepository.save(payment);
             return;
         }
 
@@ -78,5 +95,8 @@ public class TuitionAccountDomainService {
                 registrationRepository.save(registration);
             }
         }
+
+        payment.setAppliedToAccount(true);
+        paymentRepository.save(payment);
     }
 }

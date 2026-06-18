@@ -49,7 +49,9 @@ public class JwtFilter extends OncePerRequestFilter {
                         (_User) customUserDetails.loadUserByUsername(email);
 
                 //token validation
-                if (JwtUtil.isTokenValid(jwt, user)) {
+                if (JwtUtil.isTokenValid(jwt, user)
+                        && user.isEnabled()
+                        && user.isAccountNonLocked()) {
 
                     //create authentication object and set it in security context
                     UsernamePasswordAuthenticationToken authenticationToken =
@@ -66,8 +68,12 @@ public class JwtFilter extends OncePerRequestFilter {
                 }
             }
             filterChain.doFilter(request, response);
-        }catch (Exception e){
+        } catch (Exception e) {
             log.warn("JWT processing failed: {}", e.getMessage());
+            SecurityContextHolder.clearContext();
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"message\":\"invalid or expired token\"}");
         }
     }
 }
