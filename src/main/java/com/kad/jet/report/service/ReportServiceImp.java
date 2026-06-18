@@ -178,8 +178,6 @@ public class ReportServiceImp implements ReportService {
                 RegistrationStatus.PENDING_DEAN);
         long approved = countByStatus(registrations,
                 RegistrationStatus.APPROVED);
-        long rejected = countByStatus(registrations,
-                RegistrationStatus.REJECTED);
         long completed = countByStatus(registrations,
                 RegistrationStatus.COMPLETED);
 
@@ -195,7 +193,6 @@ public class ReportServiceImp implements ReportService {
                 .draftCount((int) draft)
                 .pendingDeanCount((int) pending)
                 .approvedCount((int) approved)
-                .rejectedCount((int) rejected)
                 .completedCount((int) completed)
                 .entries(entries)
                 .build();

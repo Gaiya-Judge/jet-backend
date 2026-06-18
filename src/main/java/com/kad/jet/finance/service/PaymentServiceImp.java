@@ -2,7 +2,6 @@ package com.kad.jet.finance.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kad.jet.config.PaystackConfig;
-import com.kad.jet.config.SystemConfigKeys;
 import com.kad.jet.config.service.SystemConfigService;
 import com.kad.jet.finance.dto.*;
 import com.kad.jet.finance.mapper.PaymentMapper;
@@ -30,7 +29,6 @@ import org.springframework.web.server.ResponseStatusException;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
@@ -52,6 +50,8 @@ public class PaymentServiceImp implements PaymentService {
     private final PaystackClient paystackClient;
     private final PaystackConfig paystackConfig;
     private final ObjectMapper objectMapper;
+    private final InternalPaymentHelperService internalPaymentHelperService;
+    private final TuitionAccountDomainService tuitionAccountDomainService;
 
     @Override
     public InitiatePaymentResponse initiatePayment(_User currentUser, InitiatePaymentRequest request) {
@@ -80,27 +80,39 @@ public class PaymentServiceImp implements PaymentService {
                 request.getAmount(),
                 reference);
 
-        // Call Paystack OUTSIDE any database transaction
-        // External API calls must never hold DB connections open
-        Map<String, Object> paystackData =
-                paystackClient.initializeTransaction(
-                        currentUser.getEmail(),
-                        request.getAmount(),
-                        reference);
-
-        // SHORT transaction — just save the payment record
-        saveInitiatedPayment(
+        // SHORT transaction — just save the payment record FIRST
+        // This ensures we have a record even if Paystack call fails
+        Payment initiatedPayment = internalPaymentHelperService.saveInitiatedPayment(
                 tuitionAccount,
                 request.getAmount(),
                 reference);
 
-        return InitiatePaymentResponse.builder()
-                .authorizationUrl((String) paystackData
-                        .get("authorization_url"))
-                .reference(reference)
-                .accessCode((String) paystackData
-                        .get("access_code"))
-                .build();
+        try {
+            // Call Paystack OUTSIDE any database transaction
+            // External API calls must never hold DB connections open
+            Map<String, Object> paystackData =
+                    paystackClient.initializeTransaction(
+                            currentUser.getEmail(),
+                            request.getAmount(),
+                            reference);
+
+            // Update the initiated payment with Paystack details if needed, or just return success
+            // For now, we just return the Paystack data directly.
+            return InitiatePaymentResponse.builder()
+                    .authorizationUrl((String) paystackData
+                            .get("authorization_url"))
+                    .reference(reference)
+                    .accessCode((String) paystackData
+                            .get("access_code"))
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Failed to initialize transaction with Paystack for reference {}: {}", reference, e.getMessage());
+            // Mark the payment as failed if Paystack call fails
+            initiatedPayment.setStatus(PaymentStatus.FAILED);
+            paymentRepository.save(initiatedPayment);
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Failed to initialize payment with Paystack.");
+        }
     }
 
     @Override
@@ -132,9 +144,14 @@ public class PaymentServiceImp implements PaymentService {
         log.info("Webhook received. Event: {} Reference: {}",
                 event, reference);
 
-        if ("charge.success".equals(event)
-                && webhookEventRepository.existsByReference(reference)) {
-            log.info("Duplicate webhook for reference: {}. Skipping.", reference);
+        Payment payment = paymentRepository
+                .findByIdempotencyKey(reference)
+                .orElse(null);
+
+        if (payment != null
+                && payment.getStatus() == PaymentStatus.VERIFIED
+                && Boolean.TRUE.equals(payment.getAppliedToAccount())) {
+            log.info("Duplicate already-applied webhook for reference: {}. Skipping.", reference);
             return;
         }
 
@@ -171,6 +188,9 @@ public class PaymentServiceImp implements PaymentService {
             markWebhookFailed(webhookEvent, e.getMessage());
             log.error("Webhook processing failed for reference " +
                     "{}: {}", reference, e.getMessage());
+            // IMPORTANT: For production, ensure robust monitoring and alerting for WebhookEvent
+            // records where 'processed' is false and 'processingError' is populated.
+            // These indicate failed processing that requires manual investigation and potential reprocessing.
         }
     }
 
@@ -276,7 +296,7 @@ public class PaymentServiceImp implements PaymentService {
 
         // Update tuition account balance and
         // complete registration if threshold met
-        updateTuitionAccount(payment);
+        tuitionAccountDomainService.updateTuitionAccountAndProcessRegistration(payment.getId());
 
         return PaymentMapper.toDto(payment);
     }
@@ -395,9 +415,13 @@ public class PaymentServiceImp implements PaymentService {
             );
         }
         //check if already verified
-        if (payment.getStatus() == PaymentStatus.VERIFIED){
-            log.info("Payment {} already verified. " +
-                    "Returning current state.", reference);
+        if (payment.getStatus() == PaymentStatus.VERIFIED) {
+            if (!Boolean.TRUE.equals(payment.getAppliedToAccount())) {
+                tuitionAccountDomainService
+                        .updateTuitionAccountAndProcessRegistration(payment.getId());
+            }
+
+            log.info("Payment {} already verified. Returning current state.", reference);
             return PaymentMapper.toDto(payment);
         }
 
@@ -444,7 +468,7 @@ public class PaymentServiceImp implements PaymentService {
                 payment.setVerifiedAt(LocalDateTime.now());
                 paymentRepository.save(payment);
 
-                updateTuitionAccount(payment);
+                tuitionAccountDomainService.updateTuitionAccountAndProcessRegistration(payment.getId());
 
                 log.info("Payment {} verified via manual check. " +
                         "Amount: ₦{}", reference, paidAmountNaira);
@@ -458,65 +482,13 @@ public class PaymentServiceImp implements PaymentService {
         } catch (Exception e) {
             log.error("Could not reach Paystack to verify " +
                     "reference {}: {}", reference, e.getMessage());
-            // Do not change payment status
-            // Return current state and let student try again
+            // Mark payment as FAILED if Paystack is unreachable
+            payment.setStatus(PaymentStatus.FAILED);
+            paymentRepository.save(payment);
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Could not reach payment gateway to verify payment. Please try again later.");
         }
 
         return PaymentMapper.toDto(payment);
-    }
-
-    protected void updateTuitionAccount(Payment payment) {
-
-        TuitionAccount account = payment.getTuitionAccount();
-
-        if (account.getTuitionAccountStatus() == TuitionAccountStatus.PAID) {
-            log.warn("Webhook arrived for already PAID account {}. " +
-                            "Reference: {}. No changes made.",
-                    account.getId(),
-                    payment.getPaystackReference());
-            return;
-        }
-
-        // totalPaid always reflects actual cash received
-        BigDecimal newTotalPaid = account.getTotalPaid()
-                .add(payment.getAmount());
-
-        account.setTotalPaid(newTotalPaid);
-
-        // Balance derived — floors at zero
-        BigDecimal newBalance = account.getTotalDue()
-                .subtract(newTotalPaid);
-
-        if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-            newBalance = BigDecimal.ZERO;
-        }
-
-        account.setBalance(newBalance);
-
-        // Determine status
-        if (newBalance.compareTo(BigDecimal.ZERO) == 0) {
-            // Fully paid
-            account.setTuitionAccountStatus(TuitionAccountStatus.PAID);
-
-        } else if (newTotalPaid.compareTo(
-                account.getMinimumPayment()) >= 0) {
-
-            // Met the minimum payment threshold
-            // This reads account.getMinimumPayment() directly
-            // which already reflects any waiver applied
-            // No need to recalculate from system config here
-            // If waiver reduced minimumPayment to 40%
-            // this check respects that automatically
-            account.setTuitionAccountStatus(TuitionAccountStatus.PARTIAL);
-        }
-
-        tuitionAccountRepository.save(account);
-
-        if (account.getTuitionAccountStatus() == TuitionAccountStatus.PAID ||
-                account.getTuitionAccountStatus() ==
-                        TuitionAccountStatus.PARTIAL) {
-            completeRegistration(account);
-        }
     }
 
     private void completeRegistration(TuitionAccount account) {
@@ -569,29 +541,6 @@ public class PaymentServiceImp implements PaymentService {
         }
     }
 
-    @Transactional
-    protected void saveInitiatedPayment(
-            TuitionAccount tuitionAccount,
-            BigDecimal amount,
-            String reference) {
-
-        Payment payment = Payment.builder()
-                .tuitionAccount(tuitionAccount)
-                .idempotencyKey(reference)
-                .amount(amount)
-                .paymentMethod(PaymentMethod.PAYSTACK)
-                .status(PaymentStatus.PENDING)
-                .paystackReference(reference)
-                .initiatedAt(LocalDateTime.now())
-                .expiresAt(LocalDateTime.now().plusMinutes(30))
-                .build();
-
-        paymentRepository.save(payment);
-
-        log.info("Payment record saved. Reference: {} Status: PENDING",
-                reference);
-    }
-
     private String generatePaymentReference() {
         String timestamp = String.valueOf(
                 System.currentTimeMillis());
@@ -630,6 +579,10 @@ public class PaymentServiceImp implements PaymentService {
         // Balance is NOT updated twice. Registration is NOT
         // completed twice. Data stays consistent.
         if (payment.getStatus() == PaymentStatus.VERIFIED) {
+            if (!Boolean.TRUE.equals(payment.getAppliedToAccount())){
+                tuitionAccountDomainService
+                        .updateTuitionAccountAndProcessRegistration(payment.getId());
+            }
             log.info("Payment {} already verified — " +
                             "duplicate webhook ignored. " +
                             "Idempotency working correctly.",
@@ -671,7 +624,7 @@ public class PaymentServiceImp implements PaymentService {
         paymentRepository.save(payment);
 
         // Update tuition account and complete registration
-        updateTuitionAccount(payment);
+        tuitionAccountDomainService.updateTuitionAccountAndProcessRegistration(payment.getId());
 
         log.info("Payment {} verified successfully. Amount: ₦{}",
                 reference, paidAmountNaira);

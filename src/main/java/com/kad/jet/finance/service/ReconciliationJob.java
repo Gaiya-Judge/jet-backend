@@ -27,8 +27,9 @@ public class ReconciliationJob {
     private final PaystackClient paystackClient;
     private final PaymentServiceImp paymentService;
     private final WebhookEventRepository webhookEventRepository;
+    private final InternalPaymentHelperService paymentHelperService;
 
-    @Scheduled(fixedRate = 6000000)
+    @Scheduled(fixedRate = 600000)
     public void reconcilePendingPayment(){
 
         LocalDateTime threshold = LocalDateTime.now()
@@ -60,13 +61,13 @@ public class ReconciliationJob {
                 String status = (String) paystackData.get("status");
 
                 if ("success".equals(status)) {
-                    processVerifiedPayment(payment, paystackData);
+                    paymentHelperService.processVerifiedPayment(payment, paystackData);
                     verified++;
 
                 } else if ("failed".equals(status)
                         || "abandoned".equals(status)) {
 
-                    markPaymentFailed(payment);
+                    paymentHelperService.markPaymentFailed(payment);
                     failed++;
                 } else {
 
@@ -119,7 +120,7 @@ public class ReconciliationJob {
                 paymentRepository
                         .findByIdempotencyKey(event.getReference())
                         .ifPresent(payment -> {
-                            if (payment.getStatus().equals(PaymentStatus.VERIFIED)){
+                            if (payment.getStatus().equals(PaymentStatus.PENDING)){
                                 //re-verify with paystack before process
 
                                 try {
@@ -129,7 +130,7 @@ public class ReconciliationJob {
 
                                     if ("success".equals(
                                             data.get("status"))){
-                                                processVerifiedPayment(payment, data);
+                                                paymentHelperService.processVerifiedPayment(payment, data);
                                                 event.setProcessed(true);
                                                 event.setProcessedAt(LocalDateTime.now());
                                                 webhookEventRepository
@@ -142,7 +143,15 @@ public class ReconciliationJob {
                                             event.getReference(),
                                             e.getMessage());
                                 }
-                            } else {
+                            } else if (payment.getStatus().equals(PaymentStatus.VERIFIED) &&
+                                    !Boolean.TRUE.equals(payment.getAppliedToAccount())){
+
+                                paymentHelperService.applyVerifiedPayment(payment);
+                                event.setProcessed(true);
+                                event.setProcessedAt(LocalDateTime.now());
+                                webhookEventRepository.save(event);
+
+                            }else {
                                 event.setProcessed(true);
                                 event.setProcessedAt(LocalDateTime.now());
                                 webhookEventRepository
@@ -157,44 +166,4 @@ public class ReconciliationJob {
         }
     }
 
-    @Transactional
-    private void processVerifiedPayment(Payment payment, Map<String, Object> paystackData){
-
-        //get amount
-        Object amountObj = paystackData.get("amount");
-        BigDecimal paidAmountNaira = BigDecimal
-                .valueOf(((Number) amountObj).longValue())
-                .divide(BigDecimal.valueOf(100));
-
-        if (paidAmountNaira.compareTo(payment.getAmount()) != 0){
-            log.error("Amount mismatch for reconciliation " +
-                    "for reference {}. expected: {}. got {} ",
-                    payment.getPaystackReference(),
-                    payment.getAmount(),
-                    paidAmountNaira);
-            markPaymentFailed(payment);
-            return;
-        }
-
-        payment.setStatus(PaymentStatus.VERIFIED);
-        payment.setVerifiedAt(LocalDateTime.now());
-        paymentRepository.save(payment);
-
-        paymentService.updateTuitionAccount(payment);
-
-        log.info("Payment {} verified via reconciliation. " +
-                        "Amount: ₦{}",
-                payment.getPaystackReference(),
-                paidAmountNaira);
-
-    }
-
-    @Transactional
-    private void markPaymentFailed(Payment payment){
-        payment.setStatus(PaymentStatus.FAILED);
-        paymentRepository.save(payment);
-
-        log.info("payment {} marked FAILED by reconciliation job ",
-                payment.getPaystackReference());
-    }
 }

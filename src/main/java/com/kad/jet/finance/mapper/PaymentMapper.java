@@ -17,6 +17,7 @@ public class PaymentMapper {
                 .idempotencyKey(payment.getIdempotencyKey())
                 .amount(payment.getAmount())
                 .paymentMethod(payment.getPaymentMethod())
+                .appliedToAccount(payment.getAppliedToAccount())
                 .status(payment.getStatus())
                 .paystackReference(payment.getPaystackReference())
                 .tellerImageUrl(payment.getTellerImageUrl())

@@ -32,6 +32,9 @@ public class Payment {
     @Column(nullable = false, unique = true)
     private String idempotencyKey;
 
+    @Column(nullable = false)
+    private Boolean appliedToAccount = false;
+
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
 

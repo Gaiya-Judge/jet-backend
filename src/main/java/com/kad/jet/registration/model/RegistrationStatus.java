@@ -4,6 +4,5 @@ public enum RegistrationStatus {
     DRAFT,
     PENDING_DEAN,
     APPROVED,
-    REJECTED,
     COMPLETED
 }

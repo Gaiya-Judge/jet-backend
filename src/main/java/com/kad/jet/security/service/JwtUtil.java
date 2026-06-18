@@ -9,10 +9,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 import java.util.function.Function;
 
 @Service
@@ -37,17 +35,30 @@ public class JwtUtil {
         JwtUtil.jwtRefreshTokenKeyExpiration=refreshTokenKeyExpiration;
     }
 
-    //key encoder
-    public static SecretKey getSigningKey(String secretKey){
-        if (JwtUtil.jwtSecretKey == null){
-            throw new RuntimeException("secret key not yet configured");
+    public static SecretKey getSigningKey(String secretKey) {
+        if (secretKey == null || secretKey.isBlank()) {
+            throw new IllegalStateException("JWT secret key must be configured");
         }
 
+        byte[] keyBytes;
         try {
-            byte[] keyByte = Decoders.BASE64.decode(secretKey);
-            return Keys.hmacShaKeyFor(keyByte);
-        }catch (RuntimeException e){
-            throw new RuntimeException("signing key malfunction " + e.getMessage());
+            // 1. Logic: If it looks like Hex, parse it as Hex.
+            // Otherwise, assume it's a plain string.
+            if (isHexString(secretKey)) {
+                keyBytes = HexFormat.of().parseHex(secretKey);
+            } else {
+                keyBytes = secretKey.getBytes(StandardCharsets.UTF_8);
+            }
+
+            // 2. Validate security requirement: HS256 requires at least 32 bytes
+            if (keyBytes.length < 32) {
+                throw new IllegalArgumentException("JWT secret must be at least 32 bytes for HS256");
+            }
+
+            return Keys.hmacShaKeyFor(keyBytes);
+
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid format for JWT secret key: " + e.getMessage());
         }
     }
 
@@ -118,5 +129,12 @@ public class JwtUtil {
 
     public static UUID extractUserId(String token){
         return extractClaim(token, claims -> UUID.fromString(claims.get("userId", String.class)));
+    }
+
+
+    //hex-decimal string check
+    private static boolean isHexString(String str) {
+        // Basic check: Hex strings are usually even-length and contain only 0-9, a-f, A-F
+        return str.matches("^[0-9a-fA-F]+$") && (str.length() % 2 == 0);
     }
 }

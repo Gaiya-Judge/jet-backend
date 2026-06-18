@@ -66,6 +66,10 @@ public class RegistrationServiceImp implements RegistrationService{
     @Transactional
     public RegistrationResponse createDraft(_User currentUser, CreateRegistrationRequest request) {
 
+        if (request == null) {
+            request = new CreateRegistrationRequest();
+        }
+
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.STUDENT,
                 UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
@@ -130,7 +134,11 @@ public class RegistrationServiceImp implements RegistrationService{
                     HttpStatus.UNAUTHORIZED, "unauthorized request");
         }
 
-        return buildResponse(findById(id));
+        Registration registration = findById(id);
+
+        ensureStudentOwnsRegistration(currentUser, registration);
+
+        return buildResponse(registration);
     }
 
     @Override
@@ -180,6 +188,10 @@ public class RegistrationServiceImp implements RegistrationService{
     @Transactional
     public RegistrationResponse addCourse(_User currentUser, UUID registrationId, AddCourseRequest request) {
 
+        if (request == null){
+            request =  new AddCourseRequest();
+        }
+
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.STUDENT, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED, "unauthorized request");
@@ -195,6 +207,8 @@ public class RegistrationServiceImp implements RegistrationService{
         }
 
         Registration registration = findById(registrationId);
+
+        ensureStudentOwnsRegistration(currentUser, registration);
 
         if (registration.getStatus() != RegistrationStatus.DRAFT) {
             throw new ResponseStatusException(
@@ -248,6 +262,8 @@ public class RegistrationServiceImp implements RegistrationService{
 
         Registration registration = findById(registrationId);
 
+        ensureStudentOwnsRegistration(currentUser, registration);
+
         if (registration.getStatus() != RegistrationStatus.DRAFT) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -279,6 +295,7 @@ public class RegistrationServiceImp implements RegistrationService{
         return buildResponse(registrationRepository.save(registration));
     }
 
+    // ... existing code ...
     @Override
     public List<RegistrationItemResponse> getRegistrationCourses(_User currentUser, UUID registrationId) {
         if (!RoleChecker.hasAnyRole(currentUser,
@@ -289,7 +306,9 @@ public class RegistrationServiceImp implements RegistrationService{
                     HttpStatus.UNAUTHORIZED, "unauthorized request");
         }
 
-        findById(registrationId);
+        Registration registration = findById(registrationId);
+
+       ensureStudentOwnsRegistration(currentUser, registration);
 
         return registrationItemRepository
                 .findByRegistrationId(registrationId)
@@ -302,6 +321,10 @@ public class RegistrationServiceImp implements RegistrationService{
     @Transactional
     public RegistrationResponse submitRegistration(_User currentUser, UUID registrationId, SubmitRegistrationRequest request) {
 
+        if (request == null){
+            request = new SubmitRegistrationRequest();
+        }
+
         if (!RoleChecker.hasAnyRole(currentUser,
                 UserRole.STUDENT, UserRole.IT_ADMIN,
                 UserRole.SUPER_ADMIN)) {
@@ -313,6 +336,8 @@ public class RegistrationServiceImp implements RegistrationService{
                 UserRole.IT_ADMIN, UserRole.SUPER_ADMIN);
 
         Registration registration = findById(registrationId);
+
+        ensureStudentOwnsRegistration(currentUser, registration);
 
         if (registration.getStatus() != RegistrationStatus.DRAFT) {
             throw new ResponseStatusException(
@@ -478,8 +503,12 @@ public class RegistrationServiceImp implements RegistrationService{
             estimatedTotal = BigDecimal.ZERO;
         }
 
+        int minPaymentPercentage = systemConfigService.getIntValue(
+                SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
+
         BigDecimal minimumPayment = estimatedTotal
-                .multiply(BigDecimal.valueOf(0.70))
+                .multiply(BigDecimal.valueOf(minPaymentPercentage))
+                .divide(BigDecimal.valueOf(100))
                 .setScale(2, RoundingMode.CEILING);
 
         return TuitionEstimateResponse.builder()
@@ -497,6 +526,10 @@ public class RegistrationServiceImp implements RegistrationService{
     @Override
     @Transactional
     public BulkAddCourseResponse addCourses(_User currentUser, UUID registrationId, BulkAddCourseRequest request) {
+
+        if (request == null){
+            request = new BulkAddCourseRequest();
+        }
         if (!RoleChecker.hasAnyRole(currentUser,
                 UserRole.STUDENT, UserRole.IT_ADMIN,
                 UserRole.SUPER_ADMIN)) {
@@ -515,6 +548,8 @@ public class RegistrationServiceImp implements RegistrationService{
         }
 
         Registration registration = findById(registrationId);
+
+        ensureStudentOwnsRegistration(currentUser, registration);
 
         // Only DRAFT registrations can be modified
         if (registration.getStatus() != RegistrationStatus.DRAFT) {
@@ -659,6 +694,10 @@ public class RegistrationServiceImp implements RegistrationService{
     @Override
     @Transactional
     public AddDropResponse addCourseDuringAddDrop(_User currentUser, UUID registrationId, AddDropCourseRequest request) {
+
+        if (request == null){
+            request = new AddDropCourseRequest();
+        }
         if (!RoleChecker.hasAnyRole(currentUser,
                 UserRole.STUDENT, UserRole.IT_ADMIN,
                 UserRole.SUPER_ADMIN)) {
@@ -677,6 +716,8 @@ public class RegistrationServiceImp implements RegistrationService{
         }
 
         Registration registration = findById(registrationId);
+
+        ensureStudentOwnsRegistration(currentUser, registration);
 
         // Registration must be APPROVED or COMPLETED
         // Cannot add/drop on DRAFT or PENDING_DEAN
@@ -756,6 +797,10 @@ public class RegistrationServiceImp implements RegistrationService{
     @Transactional
     public AddDropResponse dropCourseDuringAddDrop(_User currentUser, UUID registrationId, UUID courseId, String assistReason) {
 
+        if (assistReason == null){
+            assistReason = new String();
+        }
+
             if (!RoleChecker.hasAnyRole(currentUser,
                     UserRole.STUDENT, UserRole.IT_ADMIN,
                     UserRole.SUPER_ADMIN)) {
@@ -774,6 +819,8 @@ public class RegistrationServiceImp implements RegistrationService{
             }
 
             Registration registration = findById(registrationId);
+
+            ensureStudentOwnsRegistration(currentUser, registration);
 
             // Must be APPROVED or COMPLETED
             if (registration.getStatus() != RegistrationStatus.APPROVED &&
@@ -876,18 +923,22 @@ public class RegistrationServiceImp implements RegistrationService{
         }
 
         // Build appropriate message based on scenario
-        String message;
-        if (creditToGenerate.compareTo(BigDecimal.ZERO) > 0) {
-            message = "course " + courseCode +
-                    " dropped successfully. " +
-                    "₦" + creditToGenerate +
-                    " credit has been added to your account " +
-                    "and will be applied to your next semester fees.";
-        } else {
-            message = "course " + courseCode +
-                    " dropped successfully. " +
-                    "your new total fees are ₦" + newTotalDue;
-        }
+//        String message;
+//        if (creditToGenerate.compareTo(BigDecimal.ZERO) > 0) {
+//            message = "course " + courseCode +
+//                    " dropped successfully. " +
+//                    "₦" + creditToGenerate +
+//                    " credit has been added to your account " +
+//                    "and will be applied to your next semester fees.";
+//        } else {
+//            message = "course " + courseCode +
+//                    " dropped successfully. " +
+//                    "your new total fees are ₦" + newTotalDue;
+//        }
+
+        String message = creditToGenerate.compareTo(BigDecimal.ZERO) > 0
+                ? "Course dropped successfully. ₦" + creditToGenerate + " has been added as a credit balance for next semester."
+                : "Course dropped successfully. Your outstanding balance has been reduced by ₦" + refundAmount + ".";
 
         log.info("Course {} dropped during add/drop for " +
                         "registration {}. Credit generated: ₦{}",
@@ -898,11 +949,7 @@ public class RegistrationServiceImp implements RegistrationService{
                 .previousTotalDue(previousTotalDue)
                 .newTotalDue(newTotalDue)
                 .difference(refundAmount.negate())
-                .message("course " + courseCode +
-                        " dropped successfully. " +
-                        "₦" + refundAmount +
-                        " has been added as a credit balance " +
-                        "for your next semester.")
+                .message(message)
                 .build();
 
     }
@@ -917,10 +964,19 @@ public class RegistrationServiceImp implements RegistrationService{
                         "Student id is required when creating " +
                                 "registration on behalf of a student");
             }
-            return userRepository.findById(request.getStudentId())
+            _User student = userRepository.findById(request.getStudentId())
                     .orElseThrow(() -> new ResponseStatusException(
                             HttpStatus.NOT_FOUND,
                             "Student not found"));
+
+            if (student.getUserRole() != UserRole.STUDENT){
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "selected user is not a student"
+                );
+            }
+
+            return student;
         }
 
         return currentUser;
@@ -1185,9 +1241,12 @@ public class RegistrationServiceImp implements RegistrationService{
             totalDue = BigDecimal.ZERO;
         }
 
-        // Minimum payment = 70% of total due, rounded up
+        int minPaymentPercentage = systemConfigService.getIntValue(
+                SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
+
         BigDecimal minimumPayment = totalDue
-                .multiply(BigDecimal.valueOf(0.70))
+                .multiply(BigDecimal.valueOf(minPaymentPercentage))
+                .divide(BigDecimal.valueOf(100))
                 .setScale(2, RoundingMode.CEILING);
 
         TuitionAccount tuitionAccount = TuitionAccount.builder()
@@ -1347,6 +1406,15 @@ public class RegistrationServiceImp implements RegistrationService{
                         HttpStatus.NOT_FOUND,
                         "tuition account not found for " +
                                 "this registration"));
+    }
+
+    private void ensureStudentOwnsRegistration(_User currentUser, Registration registration) {
+        if (RoleChecker.is_student(currentUser) &&
+                !registration.getStudent().getId().equals(currentUser.getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "you can only perform this action on your own registration");
+        }
     }
 
     private void createCreditBalance(

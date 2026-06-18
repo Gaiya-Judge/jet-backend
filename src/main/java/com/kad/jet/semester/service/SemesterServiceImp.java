@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -106,27 +107,34 @@ public class SemesterServiceImp implements SemesterService {
         }
 
         Semester semester = findById(semesterId);
+        SemesterStatus newStatus = semesterStatusRequest.getStatus();
 
-        if (semester.getStatus() == SemesterStatus.CLOSED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Cannot change status of a closed semester");
+        // 1. Skip if no status change is needed
+        if (semester.getStatus() == newStatus) {
+            return SemesterMapper.toDto(semester);
         }
 
-        if (semesterStatusRequest.getStatus() == SemesterStatus.ACTIVE) {
+        // 2. Enforce Logical Transitions
+        boolean isValidTransition = (semester.getStatus() == SemesterStatus.UPCOMING && newStatus == SemesterStatus.ACTIVE) ||
+                (semester.getStatus() == SemesterStatus.ACTIVE && newStatus == SemesterStatus.CLOSED);
+
+        if (!isValidTransition) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid status transition");
+        }
+
+        // 3. Conflict Check (Exclude self!)
+        if (newStatus == SemesterStatus.ACTIVE) {
             semesterRepository.findByStatus(SemesterStatus.ACTIVE)
                     .ifPresent(existing -> {
-                        throw new ResponseStatusException(
-                                HttpStatus.CONFLICT,
-                                "Semester " + existing.getAcademicYear() +
-                                        " " + existing.getSemesterType() +
-                                        " is already active. " +
-                                        "Close it before activating another.");
+                        // Only throw if the found 'existing' semester is NOT the one we are editing
+                        if (!existing.getId().equals(semesterId)) {
+                            throw new ResponseStatusException(HttpStatus.CONFLICT, "Another semester is already active.");
+                        }
                     });
         }
 
-        semester.setStatus(semesterStatusRequest.getStatus());
+        semester.setStatus(newStatus);
         semesterRepository.save(semester);
-
         return SemesterMapper.toDto(semester);
     }
 
@@ -142,20 +150,25 @@ public class SemesterServiceImp implements SemesterService {
 
         LocalDate today = LocalDate.now();
 
-        if (addDropRequest.getAddDropStart().isBefore(today)){
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "add and drop cannot be before today"
-            );
+        if (addDropRequest.getAddDropStart() != null &&
+                !Objects.equals(addDropRequest.getAddDropStart(), semester.getAddDropStart())) {
+
+            if (addDropRequest.getAddDropStart().isBefore(LocalDate.now())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Add and drop start date cannot be set to a past date");
+            }
         }
 
-        if (addDropRequest.getAddDropEnd().isBefore(today)){
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "add and drop cannot be before today"
-            );
+        if (addDropRequest.getAddDropEnd() != null &&
+                !Objects.equals(addDropRequest.getAddDropEnd(), semester.getAddDropEnd())) {
+
+            if (addDropRequest.getAddDropEnd().isBefore(LocalDate.now())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Add and drop end date cannot be set to a past date");
+            }
         }
 
+        //Logic check: End must be after Start
         if (!addDropRequest.getAddDropEnd().isAfter(addDropRequest.getAddDropStart())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Add drop end date must be after start date");
@@ -163,8 +176,7 @@ public class SemesterServiceImp implements SemesterService {
 
         if (semester.getStatus() != SemesterStatus.ACTIVE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Can only configure add/drop window " +
-                            "for an active semester");
+                    "Can only configure add/drop window for an active semester");
         }
 
         semester.setAddDropStart(addDropRequest.getAddDropStart());
