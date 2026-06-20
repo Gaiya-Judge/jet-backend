@@ -255,5 +255,51 @@ public class UserAuthServiceImp implements UserAuthService{
 
     }
 
+    @Override
+    @Transactional
+    public UserResponse adminUpdateUserPassword(_User currentUser, UUID targetUserId, AdminResetPasswordRequest request) {
+
+        if (!RoleChecker.hasAnyRole(currentUser, UserRole.SUPER_ADMIN,
+                UserRole.IT_ADMIN)){
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "unauthorized request"
+            );
+        }
+
+        _User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(()-> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "target user not found"
+                ));
+
+        if (targetUser.getUserRole() == UserRole.SUPER_ADMIN
+                && currentUser.getUserRole() != UserRole.SUPER_ADMIN){
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "only SUPER_ADMIN can reset a SUPER_ADMIN password"
+            );
+        }
+
+        if (currentUser.getId().equals(targetUser.getId())){
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "use change password endpoint to change own password"
+            );
+        }
+
+        targetUser.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        targetUser.setUpdateAt(LocalDateTime.now());
+
+        userRepository.save(targetUser);
+
+        log.warn("password reset by admin. Actor: {} Target: {} reasons: {}",
+                currentUser.getId(),
+                targetUser.getId(),
+                request.getReason());
+
+        return UserMapper.toDto(targetUser);
+    }
+
 
 }
