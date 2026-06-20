@@ -19,5 +19,10 @@ public interface UserAuthService {
 
     void changePassword(ChangePasswordRequest passwordRequest, _User currentUser);
 
+    UserResponse adminUpdateUserPassword(
+            _User currentUser,
+            UUID targetUserId,
+            AdminResetPasswordRequest request);
+
 
 }

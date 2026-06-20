@@ -1,5 +1,6 @@
 package com.kad.jet.user.controller;
 
+import com.kad.jet.user.dto.AdminResetPasswordRequest;
 import com.kad.jet.user.dto.UserResponse;
 import com.kad.jet.user.dto.UsersAccountCreationRequest;
 import com.kad.jet.user.model._User;
@@ -49,6 +50,18 @@ public class UserAdminController {
     ){
         UserResponse response =
                 userAuthService.unbanUser(currentUser, userId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{id}/change-password")
+    public ResponseEntity<?> adminUpdateUserPassword(
+            @AuthenticationPrincipal _User currentUser,
+            @PathVariable UUID id,
+            @RequestBody @Valid AdminResetPasswordRequest request
+    ){
+        UserResponse response =
+                userAuthService.adminUpdateUserPassword(currentUser, id, request);
 
         return ResponseEntity.ok(response);
     }
