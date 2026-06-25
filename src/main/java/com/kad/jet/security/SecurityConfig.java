@@ -37,11 +37,11 @@ public class SecurityConfig {
                 .cors(cors-> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth->
-                        auth.requestMatchers(HttpMethod.POST,"api/user/auth/**")
+                        auth.requestMatchers(HttpMethod.POST,"/api/user/auth/**")
                                 .permitAll()
-                                .requestMatchers(HttpMethod.GET, "api/user/auth/login/**","api/ping")
+                                .requestMatchers(HttpMethod.GET, "/api/user/auth/login/**","/api/ping")
                                 .permitAll()
-                                .requestMatchers(HttpMethod.POST, "api/payment/webhook")
+                                .requestMatchers(HttpMethod.POST, "/api/payment/webhook")
                                 .permitAll()
                                 .anyRequest().authenticated())
                 .sessionManagement(session -> session
@@ -75,7 +75,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         configuration.setAllowedOrigins(List.of("*"));
-        configuration.setAllowedMethods(List.of("POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("POST", "PUT", "PATCH", "DELETE", "OPTIONS", "GET"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Authorization"));
         configuration.setAllowCredentials(false);
