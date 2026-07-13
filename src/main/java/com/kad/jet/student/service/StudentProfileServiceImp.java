@@ -2,6 +2,7 @@ package com.kad.jet.student.service;
 
 import com.kad.jet.department.model.Department;
 import com.kad.jet.department.repository.DepartmentRepository;
+import com.kad.jet.notification.event.AccountCreatedEvent;
 import com.kad.jet.program.model.Program;
 import com.kad.jet.program.repository.ProgramRepository;
 import com.kad.jet.student.dto.StudentAccountCreationRequest;
@@ -15,6 +16,7 @@ import com.kad.jet.user.repository.UserRepository;
 import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ public class StudentProfileServiceImp implements StudentProfileService {
     private final UserRepository userRepository;
     private final ProgramRepository programRepository;
     private final DepartmentRepository departmentRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     @Override
@@ -90,6 +93,10 @@ public class StudentProfileServiceImp implements StudentProfileService {
                 .build();
 
         StudentProfile savedNewStudentProfile = studentProfileRepository.save(newStudentProfile);
+
+        eventPublisher.publishEvent(
+                new AccountCreatedEvent(
+                        savedNewUser.getId()));
 
         return StudentProfileMapper.toDto(savedNewStudentProfile);
     }

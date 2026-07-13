@@ -88,7 +88,15 @@ public class DataSeeder implements CommandLineRunner {
                                     "is marked COMPLETED")
                     .build());
 
+            systemConfigRepository.save(SystemConfig.builder()
+                    .configKey(SystemConfigKeys.NOTIFICATIONS_ENABLED)
+                    .configValue("false")
+                    .description("Master switch for the in-app notification " +
+                            "feature. Keep false until stakeholder sign-off.")
+                    .build());
+
             log.info("System configuration seeded successfully");
         }
     }
+
 }
