@@ -20,4 +20,4 @@ USER spring
 
 EXPOSE 8080
 
-ENTRYPOINT ["java","-Xmx256m", "-Xms1286m", "-jar", "app.jar"]
+ENTRYPOINT ["java","-Xmx256m", "-Xms128m", "-jar", "app.jar"]
