@@ -427,7 +427,8 @@ public class RegistrationServiceImp implements RegistrationService{
         eventPublisher.publishEvent(
                 new RegistrationApprovedEvent(
                         approvedRegistration.getId(),
-                        approvedRegistration.getStudent().getId()
+                        approvedRegistration.getStudent().getId(),
+                        currentUser.getId()
                 )
         );
 
@@ -473,6 +474,7 @@ public class RegistrationServiceImp implements RegistrationService{
                 new RegistrationRejectedEvent(
                         rejectedRegistration.getId(),
                         rejectedRegistration.getStudent().getId(),
+                        currentUser.getId(),
                         request.getRemarks()
                 )
         );
@@ -801,6 +803,7 @@ public class RegistrationServiceImp implements RegistrationService{
                         registration.getId(),
                         registration.getStudent().getId(),
                         course.getCourseCode(),
+                        currentUser.getId(),
                         true
                 )
         );
@@ -928,6 +931,7 @@ public class RegistrationServiceImp implements RegistrationService{
                             registration.getId(),
                             registration.getStudent().getId(),
                             courseCode,
+                            currentUser.getId(),
                             false
                     )
             );

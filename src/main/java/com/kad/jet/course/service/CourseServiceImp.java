@@ -4,12 +4,14 @@ import com.kad.jet.course.dto.*;
 import com.kad.jet.course.model.Course;
 import com.kad.jet.course.repository.CourseRepository;
 import com.kad.jet.department.repository.DepartmentRepository;
+import com.kad.jet.notification.event.CourseCreatedEvent;
 import com.kad.jet.semester.model.SemesterType;
 import com.kad.jet.user.model.UserRole;
 import com.kad.jet.user.model._User;
 import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -27,6 +29,7 @@ public class CourseServiceImp implements CourseService {
 
     private final CourseRepository courseRepository;
     private final DepartmentRepository departmentRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final List<Integer> VALID_LEVELS =
             Arrays.asList(100, 200, 300, 400, 500, 600);
@@ -80,9 +83,17 @@ public class CourseServiceImp implements CourseService {
                 .title(request.getTitle())
                 .isActive(true)
                 .build();
-        courseRepository.save(course);
+        Course savedCourse = courseRepository.save(course);
 
-        return toResponse(course);
+        eventPublisher.publishEvent(
+                new CourseCreatedEvent(
+                        currentUser.getId(),
+                        savedCourse.getCourseCode(),
+                        savedCourse.getId()
+                )
+        );
+
+        return toResponse(savedCourse);
 
     }
 

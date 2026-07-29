@@ -24,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -96,8 +97,26 @@ public class StudentProfileServiceImp implements StudentProfileService {
 
         eventPublisher.publishEvent(
                 new AccountCreatedEvent(
-                        savedNewUser.getId()));
+                        savedNewUser.getId(),
+                        currentUser.getId()));
 
         return StudentProfileMapper.toDto(savedNewStudentProfile);
+    }
+
+    @Override
+    public StudentProfileResponse getStudentProfileById(UUID studentId, _User currentUser) {
+
+        if (RoleChecker.is_student(currentUser) && !currentUser.getId().equals(studentId)){
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "you can only view your own profile");
+        }
+
+        StudentProfile studentProfile = studentProfileRepository.findById(studentId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "student profile not found"));
+
+        return StudentProfileMapper.toDto(studentProfile);
     }
 }

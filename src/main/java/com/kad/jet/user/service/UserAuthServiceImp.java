@@ -170,7 +170,8 @@ public class UserAuthServiceImp implements UserAuthService{
         //event publisher
         eventPublisher.publishEvent
                         (new AccountCreatedEvent
-                                (saveNewUserAccount.getId()));
+                                (saveNewUserAccount.getId(),
+                                        currentUser.getId()));
 
         //return response
         return UserMapper.toDto(saveNewUserAccount);

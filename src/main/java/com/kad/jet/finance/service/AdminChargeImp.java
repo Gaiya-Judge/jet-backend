@@ -6,6 +6,9 @@ import com.kad.jet.finance.dto.UpdateAdminChargeRequest;
 import com.kad.jet.finance.mapper.AdminChargeMapper;
 import com.kad.jet.finance.model.AdminCharge;
 import com.kad.jet.finance.repository.AdminChargeRepository;
+import com.kad.jet.notification.event.AdminChargeDeletedEvent;
+import com.kad.jet.notification.event.AdminChargeUpdatedEvent;
+import com.kad.jet.notification.event.AdminChargesCreatedEvent;
 import com.kad.jet.semester.model.Semester;
 import com.kad.jet.semester.model.SemesterStatus;
 import com.kad.jet.semester.repository.SemesterRepository;
@@ -14,6 +17,7 @@ import com.kad.jet.user.model._User;
 import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,6 +33,7 @@ public class AdminChargeImp  implements AdminChargeService{
 
     private final AdminChargeRepository adminChargeRepository;
     private final SemesterRepository semesterRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
 
     @Override
@@ -69,9 +74,19 @@ public class AdminChargeImp  implements AdminChargeService{
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        adminChargeRepository.save(adminCharge);
+        AdminCharge savedAdmin = adminChargeRepository.save(adminCharge);
 
-        return AdminChargeMapper.toDto(adminCharge);
+        eventPublisher.publishEvent(
+                new AdminChargesCreatedEvent(
+                        savedAdmin.getId(),
+                        semester.getSemesterType(),
+                        currentUser.getId(),
+                        adminCharge.getName()
+                )
+        );
+
+
+        return AdminChargeMapper.toDto(savedAdmin);
     }
 
     @Override
@@ -130,9 +145,18 @@ public class AdminChargeImp  implements AdminChargeService{
             adminCharge.setAmount(request.getAmount());
         }
 
-        adminChargeRepository.save(adminCharge);
+        AdminCharge updagtedAdminCharge = adminChargeRepository.save(adminCharge);
 
-        return AdminChargeMapper.toDto(adminCharge);
+        eventPublisher.publishEvent(
+                new AdminChargeUpdatedEvent(
+                        adminCharge.getId(),
+                        adminCharge.getSemester().getSemesterType(),
+                        currentUser.getId(),
+                        adminCharge.getName()
+                )
+        );
+
+        return AdminChargeMapper.toDto(updagtedAdminCharge);
     }
 
     @Override
@@ -145,6 +169,15 @@ public class AdminChargeImp  implements AdminChargeService{
         }
         AdminCharge adminCharge = findById(id);
         adminChargeRepository.delete(adminCharge);
+
+        eventPublisher.publishEvent(
+                new AdminChargeDeletedEvent(
+                        adminCharge.getId(),
+                        adminCharge.getSemester().getSemesterType(),
+                        currentUser.getId(),
+                        adminCharge.getName()
+                )
+        );
     }
 
     private AdminCharge findById(UUID adminChargeId){

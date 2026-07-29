@@ -2,5 +2,8 @@ package com.kad.jet.notification.event;
 
 import java.util.UUID;
 
-public record RegistrationApprovedEvent(UUID registrationId, UUID studentId) {
+public record RegistrationApprovedEvent(
+        UUID registrationId,
+        UUID studentId,
+        UUID actorId) {
 }

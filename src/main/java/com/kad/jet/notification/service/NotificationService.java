@@ -12,7 +12,7 @@ import java.util.UUID;
 public interface NotificationService {
 
     // Called internally by event listeners — NOT exposed via controller
-    Notification create(_User recipient, NotificationType type,
+    Notification create(_User recipient, _User actor, NotificationType type,
                         String title, String message,
                         String relatedEntityType, UUID relatedEntityId);
 

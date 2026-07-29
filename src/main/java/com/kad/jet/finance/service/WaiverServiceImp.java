@@ -185,7 +185,8 @@ public class WaiverServiceImp implements WaiverService {
                 new WaiverAppliedEvent(
                         waiver.getId(),
                         waiver.getTuitionAccount().getId(),
-                        waiver.getTuitionAccount().getStudent().getId()));
+                        waiver.getTuitionAccount().getStudent().getId(),
+                        currentUser.getId()));
 
         return buildResponse(
                 waiver, account, originalMinimumPayment);

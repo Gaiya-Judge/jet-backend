@@ -6,6 +6,8 @@ import com.kad.jet.finance.dto.UpdateFeeStructureRequest;
 import com.kad.jet.finance.mapper.FeeStructureMapper;
 import com.kad.jet.finance.model.FeeStructure;
 import com.kad.jet.finance.repository.FeeStructureRepository;
+import com.kad.jet.notification.event.FeeStructureCreatedEvent;
+import com.kad.jet.notification.event.FeeStructureUpdatedEvent;
 import com.kad.jet.program.model.Program;
 import com.kad.jet.program.repository.ProgramRepository;
 import com.kad.jet.semester.model.Semester;
@@ -16,6 +18,7 @@ import com.kad.jet.user.model._User;
 import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -33,6 +36,7 @@ public class FeeStructureServiceImp implements FeeStructureService{
     private final FeeStructureRepository feeStructureRepository;
     private final SemesterRepository semesterRepository;
     private final ProgramRepository programRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
 
     @Override
@@ -76,9 +80,17 @@ public class FeeStructureServiceImp implements FeeStructureService{
                 .semester(semester)
                 .build();
 
-        feeStructureRepository.save(feeStructure);
+        FeeStructure savedFeeStructure = feeStructureRepository.save(feeStructure);
 
-        return FeeStructureMapper.toDto(feeStructure);
+        eventPublisher.publishEvent(
+                new FeeStructureCreatedEvent(
+                        feeStructure.getId(),
+                        program.getId(),
+                        semester.getSemesterType(),
+                        currentUser.getId()
+                )
+        );
+        return FeeStructureMapper.toDto(savedFeeStructure);
     }
 
     @Override
@@ -133,9 +145,17 @@ public class FeeStructureServiceImp implements FeeStructureService{
         }
 
         feeStructure.setCostPerCreditUnit(structureRequest.getCostPerCreditUnit());
-        feeStructureRepository.save(feeStructure);
+        FeeStructure updatedFeeStructure = feeStructureRepository.save(feeStructure);
 
-        return FeeStructureMapper.toDto(feeStructure);
+        eventPublisher.publishEvent(
+                new FeeStructureUpdatedEvent(
+                        updatedFeeStructure.getId(),
+                        currentUser.getId(),
+                        updatedFeeStructure.getProgram().getId()
+                )
+        );
+
+        return FeeStructureMapper.toDto(updatedFeeStructure);
     }
 
     @Override

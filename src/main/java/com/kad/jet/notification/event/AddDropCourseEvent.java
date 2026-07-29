@@ -6,6 +6,7 @@ public record AddDropCourseEvent(
         UUID registrationId,
         UUID studentId,
         String courseCode,
+        UUID actorId,
         boolean added
 ) {
 }

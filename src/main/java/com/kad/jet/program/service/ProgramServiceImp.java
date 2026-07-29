@@ -1,5 +1,7 @@
 package com.kad.jet.program.service;
 
+import com.kad.jet.notification.event.ProgramCreatedEvent;
+import com.kad.jet.notification.event.ProgramDeletedEvent;
 import com.kad.jet.program.dto.CreateProgramRequest;
 import com.kad.jet.program.dto.ProgramPageResponse;
 import com.kad.jet.program.dto.ProgramResponse;
@@ -12,6 +14,7 @@ import com.kad.jet.user.model._User;
 import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +32,7 @@ import java.util.UUID;
 public class ProgramServiceImp implements ProgramService {
 
     private final ProgramRepository programRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     @Override
@@ -54,6 +58,14 @@ public class ProgramServiceImp implements ProgramService {
 
         Program savedProgram = programRepository.save(newProgram);
 
+        eventPublisher.publishEvent(
+                new ProgramCreatedEvent(
+                        savedProgram.getId(),
+                        savedProgram.getName(),
+                        currentUser.getId()
+                )
+        );
+
         return ProgramMapper.toDto(savedProgram);
 
     }
@@ -74,6 +86,14 @@ public class ProgramServiceImp implements ProgramService {
         program.setIsActive(false);
 
         programRepository.save(program);
+
+        eventPublisher.publishEvent(
+                new ProgramDeletedEvent(
+                        program.getId(),
+                        program.getName(),
+                        currentUser.getId()
+                )
+        );
     }
 
     @Override

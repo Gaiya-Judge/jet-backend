@@ -27,7 +27,7 @@ public class NotificationServiceImp implements NotificationService {
 
     @Override
     @Transactional
-    public Notification create(_User recipient, NotificationType type, String title, String message,
+    public Notification create(_User recipient, _User actor, NotificationType type, String title, String message,
                                String relatedEntityType, UUID relatedEntityId) {
 
         if (!isNotificationsEnabled()){

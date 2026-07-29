@@ -1,5 +1,8 @@
 package com.kad.jet.semester.service;
 
+import com.kad.jet.notification.event.AddAndDropConfigurationEvent;
+import com.kad.jet.notification.event.AddDropCourseEvent;
+import com.kad.jet.notification.event.SemesterUpdatedStatusEvent;
 import com.kad.jet.semester.dto.*;
 import com.kad.jet.semester.mapper.SemesterMapper;
 import com.kad.jet.semester.model.Semester;
@@ -10,6 +13,7 @@ import com.kad.jet.user.model._User;
 import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -26,6 +30,7 @@ import java.util.UUID;
 public class SemesterServiceImp implements SemesterService {
 
     private final SemesterRepository semesterRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -135,6 +140,15 @@ public class SemesterServiceImp implements SemesterService {
 
         semester.setStatus(newStatus);
         semesterRepository.save(semester);
+
+        eventPublisher.publishEvent(
+                new SemesterUpdatedStatusEvent(
+                        semester.getId(),
+                        semester.getStatus(),
+                        currentUser.getId()
+
+                ));
+
         return SemesterMapper.toDto(semester);
     }
 
@@ -183,6 +197,15 @@ public class SemesterServiceImp implements SemesterService {
         semester.setAddDropEnd(addDropRequest.getAddDropEnd());
 
         semesterRepository.save(semester);
+
+        eventPublisher.publishEvent(
+                new AddAndDropConfigurationEvent(
+                        semester.getId(),
+                        currentUser.getId(),
+                        semester.getAddDropStart(),
+                        semester.getAddDropEnd()
+                )
+        );
 
         return SemesterMapper.toDto(semester);
     }
