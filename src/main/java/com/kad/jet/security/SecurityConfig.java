@@ -76,7 +76,8 @@ public class SecurityConfig {
 
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",
-                "https://jet-kad-nhp9.vercel.app"
+                "https://jet-kad-nhp9.vercel.app",
+                "http://localhost:5173"
         ));
 
         configuration.setAllowedMethods(List.of(
