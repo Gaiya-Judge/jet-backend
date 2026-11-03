@@ -814,6 +814,7 @@ public class NotificationEventListener {
         }
     }
 
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onAssignHodToDepartmentEventListener(AssignHODToDepartmentEvent event){
         try {
             _User actor = findUser(event.actorId());
@@ -855,8 +856,25 @@ public class NotificationEventListener {
                     continue;
                 }
 
-                if ((course.getIsDepartmentRestricted() && course.getDepartment().getHod().equals(course.)))
+                if (Boolean.TRUE.equals(course.getIsDepartmentRestricted()) &&
+                        (course.getDepartment().getHod() == null ||
+                                !studentAndStaff.getId().equals(course.getDepartment().getHod().getId()))) {
+                    continue;
+                }
+
+                notificationService.create(
+                        studentAndStaff,
+                        actor,
+                        NotificationType.COURSE_CREATED,
+                        "New course created",
+                        "Course " + event.courseCode() + " has been created.",
+                        "COURSE",
+                        event.courseId()
+                );
             }
+        } catch (Exception e) {
+            log.error("Failed to create notification for CourseCreatedEvent. courseId: {} error: {}",
+                    event.courseId(), e.getMessage());
         }
     }
 
