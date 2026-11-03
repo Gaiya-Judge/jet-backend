@@ -54,6 +54,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class RegistrationServiceImp implements RegistrationService{
 
+    private static final Set<String> FAILING_GRADES = Set.of("D", "E", "F");
+
     private final RegistrationRepository registrationRepository;
     private final RegistrationItemRepository registrationItemRepository;
     private final CourseRepository courseRepository;
@@ -237,12 +239,15 @@ public class RegistrationServiceImp implements RegistrationService{
         // Run all course validations
         validateCourseForRegistration(course, studentProfile, registration, registrationId,false);
 
+        boolean carryover = isCarryoverEligible(registration.getStudent(), course,
+                registration.getSemester());
+
         // Add the course
         RegistrationItem item = RegistrationItem.builder()
                 .registration(registration)
                 .course(course)
-                .isCarryOver(false)
-                .isDroppable(true)
+                .isCarryOver(carryover)
+                .isDroppable(!carryover)
                 .build();
 
         registrationItemRepository.save(item);
@@ -627,7 +632,8 @@ public class RegistrationServiceImp implements RegistrationService{
                 }
 
                 // Semester type check
-                // Skip for SUMMER — only carryovers run in summer
+                // Summer accepts courses only when they are outstanding carryovers.
+                validateSummerCourseEligibility(course, registration);
                 if (registration.getSemester().getSemesterType()
                         != SemesterType.SUMMER) {
                     if (course.getSemesterType() !=
@@ -694,11 +700,14 @@ public class RegistrationServiceImp implements RegistrationService{
                 }
 
                 // All checks passed — add the course
+                boolean carryover = isCarryoverEligible(
+                        registration.getStudent(), course,
+                        registration.getSemester());
                 RegistrationItem item = RegistrationItem.builder()
                         .registration(registration)
                         .course(course)
-                        .isCarryOver(false)
-                        .isDroppable(true)
+                        .isCarryOver(carryover)
+                        .isDroppable(!carryover)
                         .build();
 
                 registrationItemRepository.save(item);
@@ -789,11 +798,13 @@ public class RegistrationServiceImp implements RegistrationService{
         BigDecimal previousTotalDue = account.getTotalDue();
 
         // Add the course to registration
+        boolean carryover = isCarryoverEligible(registration.getStudent(), course,
+                registration.getSemester());
         RegistrationItem item = RegistrationItem.builder()
                 .registration(registration)
                 .course(course)
-                .isCarryOver(false)
-                .isDroppable(true)
+                .isCarryOver(carryover)
+                .isDroppable(!carryover)
                 .build();
 
         registrationItemRepository.save(item);
@@ -1066,31 +1077,28 @@ public class RegistrationServiceImp implements RegistrationService{
         }
     }
 
-    private void autoAddCarryoverCourses(Registration registration, _User student) {
+    void autoAddCarryoverCourses(Registration registration, _User student) {
 
-        List<String> failingGrades = List.of("D", "E", "F");
-
-        List<StudentGrade> failedGrades = studentGradeRepository
-                .findByStudentId(student.getId())
-                .stream()
-                .filter(g -> failingGrades.contains(g.getGrade()))
+        List<StudentGrade> studentGrades = studentGradeRepository
+                .findByStudentId(student.getId());
+        List<StudentGrade> failedGrades = studentGrades.stream()
+                .filter(g -> FAILING_GRADES.contains(g.getGrade()))
                 .toList();
 
         if (failedGrades.isEmpty()) return;
 
-        Set<UUID> passedCourseIds = studentGradeRepository
-                .findByStudentId(student.getId())
-                .stream()
-                .filter(g -> !failingGrades.contains(g.getGrade()))
-                .map(g -> g.getCourse().getId())
-                .collect(Collectors.toSet());
-
         int totalCarryoverUnits = 0;
+        Set<UUID> addedCourseIds = new HashSet<>();
 
         for (StudentGrade failedGrade : failedGrades) {
             UUID courseId = failedGrade.getCourse().getId();
 
-            if (passedCourseIds.contains(courseId)) continue;
+            if (!addedCourseIds.add(courseId)) continue;
+
+            if (!isCarryoverSemesterEligible(failedGrade.getCourse(),
+                    registration.getSemester())) continue;
+
+            if (!isOutstandingCarryover(studentGrades, courseId)) continue;
 
             if (registrationItemRepository
                     .existsByRegistrationIdAndCourseId(
@@ -1147,7 +1155,7 @@ public class RegistrationServiceImp implements RegistrationService{
                 registration, matricNumber, courses);
     }
 
-    private void validateCourseForRegistration(Course course, StudentProfile studentProfile, Registration registration,
+    void validateCourseForRegistration(Course course, StudentProfile studentProfile, Registration registration,
                                                UUID registrationId, boolean isCarryover) {
         // Level must match student level
         if (!course.getLevel().equals(studentProfile.getLevel())) {
@@ -1176,6 +1184,8 @@ public class RegistrationServiceImp implements RegistrationService{
                                     registration.getSemester()
                                             .getSemesterType());
                 }
+            } else {
+                validateSummerCourseEligibility(course, registration);
             }
 
             // Department restriction check
@@ -1215,6 +1225,45 @@ public class RegistrationServiceImp implements RegistrationService{
                             "of " + getMaxCreditUnits() + " credit units. " +
                             "projected total: " + projectedTotal);
         }
+    }
+
+    private void validateSummerCourseEligibility(Course course,
+                                                  Registration registration) {
+        if (registration.getSemester().getSemesterType() == SemesterType.SUMMER
+                && !isCarryoverEligible(registration.getStudent(), course,
+                registration.getSemester())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "SUMMER registration accepts carryover courses only");
+        }
+    }
+
+    boolean isCarryoverEligible(_User student, Course course,
+                                        Semester registrationSemester) {
+        if (!isCarryoverSemesterEligible(course, registrationSemester)) {
+            return false;
+        }
+
+        List<StudentGrade> grades = studentGradeRepository
+                .findByStudentId(student.getId());
+        return isOutstandingCarryover(grades, course.getId());
+    }
+
+    private boolean isOutstandingCarryover(List<StudentGrade> grades,
+                                           UUID courseId) {
+        boolean failed = grades.stream().anyMatch(grade ->
+                grade.getCourse().getId().equals(courseId)
+                        && FAILING_GRADES.contains(grade.getGrade()));
+        boolean completed = grades.stream().anyMatch(grade ->
+                grade.getCourse().getId().equals(courseId)
+                        && !FAILING_GRADES.contains(grade.getGrade()));
+        return failed && !completed;
+    }
+
+    private boolean isCarryoverSemesterEligible(Course course,
+                                                Semester registrationSemester) {
+        return registrationSemester.getSemesterType() == SemesterType.SUMMER
+                || course.getSemesterType()
+                == registrationSemester.getSemesterType();
     }
 
     private int getMaxCreditUnits() {
