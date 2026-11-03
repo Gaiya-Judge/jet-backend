@@ -1,5 +1,8 @@
 package com.kad.jet.user.service;
 
+import com.kad.jet.notification.event.AccountCreatedEvent;
+import com.kad.jet.notification.event.AdminUpdateUserPasswordEvent;
+import com.kad.jet.notification.event.PasswordChangedEvent;
 import com.kad.jet.security.model.RefreshToken;
 import com.kad.jet.security.repository.RefreshTokenRepository;
 import com.kad.jet.security.service.JwtUtil;
@@ -13,6 +16,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -33,6 +37,7 @@ public class UserAuthServiceImp implements UserAuthService{
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${jwt.refresh-expiration-ms}")
     private long jwtRefreshTokenExpiration;
@@ -162,6 +167,12 @@ public class UserAuthServiceImp implements UserAuthService{
 
         _User saveNewUserAccount = userRepository.save(newUserAccount);
 
+        //event publisher
+        eventPublisher.publishEvent
+                        (new AccountCreatedEvent
+                                (saveNewUserAccount.getId(),
+                                        currentUser.getId()));
+
         //return response
         return UserMapper.toDto(saveNewUserAccount);
     }
@@ -253,6 +264,10 @@ public class UserAuthServiceImp implements UserAuthService{
 
         userRepository.save(currentUser);
 
+        eventPublisher
+                .publishEvent
+                        (new PasswordChangedEvent(currentUser.getId()));
+
     }
 
     @Override
@@ -292,6 +307,13 @@ public class UserAuthServiceImp implements UserAuthService{
         targetUser.setUpdateAt(LocalDateTime.now());
 
         userRepository.save(targetUser);
+
+        eventPublisher.publishEvent(
+                new AdminUpdateUserPasswordEvent(
+                        targetUser.getId(),
+                        currentUser.getId()
+                )
+        );
 
         log.warn("password reset by admin. Actor: {} Target: {} reasons: {}",
                 currentUser.getId(),

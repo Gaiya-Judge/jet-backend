@@ -2,6 +2,7 @@ package com.kad.jet.student.service;
 
 import com.kad.jet.department.model.Department;
 import com.kad.jet.department.repository.DepartmentRepository;
+import com.kad.jet.notification.event.AccountCreatedEvent;
 import com.kad.jet.program.model.Program;
 import com.kad.jet.program.repository.ProgramRepository;
 import com.kad.jet.student.dto.StudentAccountCreationRequest;
@@ -15,6 +16,7 @@ import com.kad.jet.user.repository.UserRepository;
 import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +35,7 @@ public class StudentProfileServiceImp implements StudentProfileService {
     private final UserRepository userRepository;
     private final ProgramRepository programRepository;
     private final DepartmentRepository departmentRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     @Override
@@ -91,6 +95,28 @@ public class StudentProfileServiceImp implements StudentProfileService {
 
         StudentProfile savedNewStudentProfile = studentProfileRepository.save(newStudentProfile);
 
+        eventPublisher.publishEvent(
+                new AccountCreatedEvent(
+                        savedNewUser.getId(),
+                        currentUser.getId()));
+
         return StudentProfileMapper.toDto(savedNewStudentProfile);
+    }
+
+    @Override
+    public StudentProfileResponse getStudentProfileById(UUID studentId, _User currentUser) {
+
+        if (RoleChecker.is_student(currentUser) && !currentUser.getId().equals(studentId)){
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "you can only view your own profile");
+        }
+
+        StudentProfile studentProfile = studentProfileRepository.findById(studentId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "student profile not found"));
+
+        return StudentProfileMapper.toDto(studentProfile);
     }
 }

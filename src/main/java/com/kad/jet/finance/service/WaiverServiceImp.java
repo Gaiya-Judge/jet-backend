@@ -9,6 +9,7 @@ import com.kad.jet.finance.model.TuitionAccountStatus;
 import com.kad.jet.finance.model.Waiver;
 import com.kad.jet.finance.repository.TuitionAccountRepository;
 import com.kad.jet.finance.repository.WaiverRepository;
+import com.kad.jet.notification.event.WaiverAppliedEvent;
 import com.kad.jet.student.model.StudentProfile;
 import com.kad.jet.student.repository.StudentProfileRepository;
 import com.kad.jet.user.model.UserRole;
@@ -17,6 +18,7 @@ import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -35,6 +37,7 @@ public class WaiverServiceImp implements WaiverService {
     private final TuitionAccountRepository tuitionAccountRepository;
     private final StudentProfileRepository studentProfileRepository;
     private final SystemConfigService systemConfigService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -177,6 +180,13 @@ public class WaiverServiceImp implements WaiverService {
                 .multiply(BigDecimal.valueOf(systemMinPercentage))
                 .divide(BigDecimal.valueOf(100))
                 .setScale(2, RoundingMode.CEILING);
+
+        eventPublisher.publishEvent(
+                new WaiverAppliedEvent(
+                        waiver.getId(),
+                        waiver.getTuitionAccount().getId(),
+                        waiver.getTuitionAccount().getStudent().getId(),
+                        currentUser.getId()));
 
         return buildResponse(
                 waiver, account, originalMinimumPayment);

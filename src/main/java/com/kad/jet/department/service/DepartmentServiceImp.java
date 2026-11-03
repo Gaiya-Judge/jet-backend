@@ -4,6 +4,10 @@ import com.kad.jet.department.dto.*;
 import com.kad.jet.department.mapper.DepartmentMapper;
 import com.kad.jet.department.model.Department;
 import com.kad.jet.department.repository.DepartmentRepository;
+import com.kad.jet.notification.event.AssignHODToDepartmentEvent;
+import com.kad.jet.notification.event.DepartmentCreatedEvent;
+import com.kad.jet.notification.event.DepartmentDeletedEvent;
+import com.kad.jet.notification.event.DepartmentUpdatedEvent;
 import com.kad.jet.program.model.Program;
 import com.kad.jet.program.repository.ProgramRepository;
 import com.kad.jet.user.model.UserRole;
@@ -12,6 +16,7 @@ import com.kad.jet.user.repository.UserRepository;
 import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +36,7 @@ public class DepartmentServiceImp implements DepartmentService {
     private final DepartmentRepository departmentRepository;
     private final ProgramRepository programRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     @Override
@@ -60,6 +66,15 @@ public class DepartmentServiceImp implements DepartmentService {
 
         Department savedDepartment = departmentRepository.save(newDepartment);
 
+        eventPublisher.publishEvent(
+                new DepartmentCreatedEvent(
+                        savedDepartment.getId(),
+                        savedDepartment.getName(),
+                        currentUser.getId(),
+                        program.getId()
+                )
+        );
+
         return DepartmentMapper.toDto(savedDepartment);
 
     }
@@ -76,8 +91,14 @@ public class DepartmentServiceImp implements DepartmentService {
 
         department.setIsActive(false);
 
-        departmentRepository.save(department);
+        Department softDelete = departmentRepository.save(department);
 
+        eventPublisher.publishEvent(
+                new DepartmentDeletedEvent(
+                        softDelete.getId(),
+                        currentUser.getId()
+                )
+        );
     }
 
     @Transactional
@@ -100,6 +121,13 @@ public class DepartmentServiceImp implements DepartmentService {
         }
 
         Department updatedDepartment = departmentRepository.save(department);
+
+        eventPublisher.publishEvent(
+                new DepartmentUpdatedEvent(
+                        updatedDepartment.getId(),
+                        currentUser.getId()
+                )
+        );
 
         return DepartmentMapper.toDto(updatedDepartment);
     }
@@ -235,6 +263,14 @@ public class DepartmentServiceImp implements DepartmentService {
         department.setIsActive(true);
 
         Department updateDepartment = departmentRepository.save(department);
+
+        eventPublisher.publishEvent(
+                new AssignHODToDepartmentEvent(
+                        updateDepartment.getId(),
+                        updateDepartment.getHod().getId(),
+                        currentUser.getId()
+                )
+        );
 
         return DepartmentMapper.toDto(updateDepartment);
     }

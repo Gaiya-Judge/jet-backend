@@ -7,6 +7,10 @@ import com.kad.jet.course.repository.CourseRepository;
 import com.kad.jet.finance.model.*;
 import com.kad.jet.finance.repository.AdminChargeRepository;
 import com.kad.jet.finance.repository.FeeStructureRepository;
+import com.kad.jet.notification.event.AddDropCourseEvent;
+import com.kad.jet.notification.event.RegistrationApprovedEvent;
+import com.kad.jet.notification.event.RegistrationRejectedEvent;
+import com.kad.jet.notification.event.RegistrationSubmittedEvent;
 import com.kad.jet.student.repository.StudentGradeRepository;
 import com.kad.jet.finance.repository.TuitionAccountRepository;
 import com.kad.jet.registration.dto.*;
@@ -31,6 +35,7 @@ import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -61,6 +66,7 @@ public class RegistrationServiceImp implements RegistrationService{
     private final CreditBalanceRepository creditBalanceRepository;
     private final UserRepository userRepository;
     private final SystemConfigService systemConfigService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -362,7 +368,16 @@ public class RegistrationServiceImp implements RegistrationService{
         registration.setStatus(RegistrationStatus.PENDING_DEAN);
         registration.setSubmittedAt(LocalDateTime.now());
 
-        return buildResponse(registrationRepository.save(registration));
+        Registration savedRegistration = registrationRepository.save(registration);
+
+        eventPublisher.publishEvent(
+                new RegistrationSubmittedEvent(
+                        savedRegistration.getId(),
+                        savedRegistration.getStudent().getId()
+                )
+        );
+
+        return buildResponse(savedRegistration);
     }
 
     @Override
@@ -402,13 +417,22 @@ public class RegistrationServiceImp implements RegistrationService{
             registration.setDeanRemark(request.getRemarks());
         }
 
-        registrationRepository.save(registration);
+        Registration approvedRegistration =
+                registrationRepository.save(registration);
 
         // Auto create tuition account in same transaction
         // If this fails the approval rolls back
         createTuitionAccount(registration);
 
-        return buildResponse(registration);
+        eventPublisher.publishEvent(
+                new RegistrationApprovedEvent(
+                        approvedRegistration.getId(),
+                        approvedRegistration.getStudent().getId(),
+                        currentUser.getId()
+                )
+        );
+
+        return buildResponse(approvedRegistration);
     }
 
     @Override
@@ -443,7 +467,19 @@ public class RegistrationServiceImp implements RegistrationService{
         registration.setDeanReviewAt(LocalDateTime.now());
         registration.setDeanRemark(request.getRemarks());
 
-        return buildResponse(registrationRepository.save(registration));
+        Registration rejectedRegistration =
+                registrationRepository.save(registration);
+
+        eventPublisher.publishEvent(
+                new RegistrationRejectedEvent(
+                        rejectedRegistration.getId(),
+                        rejectedRegistration.getStudent().getId(),
+                        currentUser.getId(),
+                        request.getRemarks()
+                )
+        );
+
+        return buildResponse(rejectedRegistration);
     }
 
     @Override
@@ -762,6 +798,16 @@ public class RegistrationServiceImp implements RegistrationService{
 
         registrationItemRepository.save(item);
 
+        eventPublisher.publishEvent(
+                new AddDropCourseEvent(
+                        registration.getId(),
+                        registration.getStudent().getId(),
+                        course.getCourseCode(),
+                        currentUser.getId(),
+                        true
+                )
+        );
+
         // Update total credit units
         registration.setTotalCreditUnits(
                 registration.getTotalCreditUnits()
@@ -879,6 +925,16 @@ public class RegistrationServiceImp implements RegistrationService{
             // Update credit units
             registration.setTotalCreditUnits(newTotalUnits);
             registrationRepository.save(registration);
+
+            eventPublisher.publishEvent(
+                    new AddDropCourseEvent(
+                            registration.getId(),
+                            registration.getStudent().getId(),
+                            courseCode,
+                            currentUser.getId(),
+                            false
+                    )
+            );
 
             // Recalculate tuition account figures
             StudentProfile studentProfile = getStudentProfile(

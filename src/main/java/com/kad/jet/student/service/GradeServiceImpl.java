@@ -2,6 +2,7 @@ package com.kad.jet.student.service;
 
 import com.kad.jet.course.model.Course;
 import com.kad.jet.course.repository.CourseRepository;
+import com.kad.jet.notification.event.GradeImportCompletedEvent;
 import com.kad.jet.semester.model.Semester;
 import com.kad.jet.semester.model.SemesterType;
 import com.kad.jet.semester.repository.SemesterRepository;
@@ -19,6 +20,7 @@ import com.opencsv.CSVReader;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -42,6 +44,7 @@ public class GradeServiceImpl implements GradeService{
     private final CourseRepository courseRepository;
     private final SemesterRepository semesterRepository;
     private final GradeImportLogRepository gradeImportLogRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     // Valid grade values the system accepts
     private static final List<String> VALID_GRADES =
@@ -153,6 +156,16 @@ public class GradeServiceImpl implements GradeService{
         }
 
         gradeImportLogRepository.save(importLog);
+
+        eventPublisher.publishEvent(
+                new GradeImportCompletedEvent(
+                        importLog.getId(),
+                        currentUser.getId(),
+                        importLog.getSuccessCount(),
+                        importLog.getErrorCount()
+                )
+        );
+
 
         log.info("Grade import completed by {}. " +
                         "File: {} Total: {} Success: {} Failed: {}",

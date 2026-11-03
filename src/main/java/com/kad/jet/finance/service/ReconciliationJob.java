@@ -5,10 +5,13 @@ import com.kad.jet.finance.model.PaymentStatus;
 import com.kad.jet.finance.model.WebhookEvent;
 import com.kad.jet.finance.repository.PaymentRepository;
 import com.kad.jet.finance.repository.WebhookEventRepository;
+import com.kad.jet.notification.event.ReconciliationJobPaymentFailedEvent;
+import com.kad.jet.notification.event.ReconciliationJobPaymentVerifiedEvent;
 import jakarta.transaction.Transactional;
 import jdk.jfr.EventType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -28,6 +31,7 @@ public class ReconciliationJob {
     private final PaymentServiceImp paymentService;
     private final WebhookEventRepository webhookEventRepository;
     private final InternalPaymentHelperService paymentHelperService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Scheduled(fixedRate = 600000)
     public void reconcilePendingPayment(){
@@ -63,12 +67,26 @@ public class ReconciliationJob {
                 if ("success".equals(status)) {
                     paymentHelperService.processVerifiedPayment(payment, paystackData);
                     verified++;
+                    eventPublisher.publishEvent(
+                            new ReconciliationJobPaymentVerifiedEvent(
+                                    payment.getId(),
+                                    payment.getTuitionAccount().getId(),
+                                    payment.getTuitionAccount().getStudent().getId(),
+                                    payment.getAmount()
+                            )
+                    );
 
                 } else if ("failed".equals(status)
                         || "abandoned".equals(status)) {
 
                     paymentHelperService.markPaymentFailed(payment);
                     failed++;
+                    eventPublisher.publishEvent(
+                            new ReconciliationJobPaymentFailedEvent(
+                                    payment.getId(),
+                                    payment.getTuitionAccount().getStudent().getId()
+                            )
+                    );
                 } else {
 
                     stillPending++;

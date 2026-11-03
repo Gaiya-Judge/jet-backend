@@ -9,6 +9,8 @@ import com.kad.jet.finance.model.*;
 import com.kad.jet.finance.repository.PaymentRepository;
 import com.kad.jet.finance.repository.TuitionAccountRepository;
 import com.kad.jet.finance.repository.WebhookEventRepository;
+import com.kad.jet.notification.event.PaymentFailedEvent;
+import com.kad.jet.notification.event.PaymentVerifiedEvent;
 import com.kad.jet.registration.model.Registration;
 import com.kad.jet.registration.model.RegistrationStatus;
 import com.kad.jet.registration.repository.RegistrationRepository;
@@ -20,6 +22,7 @@ import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -52,6 +55,7 @@ public class PaymentServiceImp implements PaymentService {
     private final ObjectMapper objectMapper;
     private final InternalPaymentHelperService internalPaymentHelperService;
     private final TuitionAccountDomainService tuitionAccountDomainService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public InitiatePaymentResponse initiatePayment(_User currentUser, InitiatePaymentRequest request) {
@@ -64,7 +68,6 @@ public class PaymentServiceImp implements PaymentService {
         // Read tuition account — no transaction needed for reads
         TuitionAccount tuitionAccount = findTuitionAccount(
                 request.getTuitionAccountId());
-
 
         // Validate all business rules before calling Paystack
         validatePaymentRequest(currentUser,
@@ -178,8 +181,19 @@ public class PaymentServiceImp implements PaymentService {
 
         // Step 5 — process the charge
         try {
-            processChargeSuccess(data, reference);
+            Payment verifiedPayment = processChargeSuccess(data, reference);
             markWebhookProcessed(webhookEvent, null);
+
+            if (verifiedPayment != null){
+                eventPublisher.publishEvent(
+                        new PaymentVerifiedEvent(
+                                verifiedPayment.getId(),
+                                verifiedPayment.getTuitionAccount().getId(),
+                                verifiedPayment.getTuitionAccount().getStudent().getId(),
+                                verifiedPayment.getAmount()
+                        )
+                );
+            }
         } catch (Exception e) {
             // Mark as failed but do not re-throw
             // We already returned 200 to Paystack
@@ -191,7 +205,7 @@ public class PaymentServiceImp implements PaymentService {
             // IMPORTANT: For production, ensure robust monitoring and alerting for WebhookEvent
             // records where 'processed' is false and 'processingError' is populated.
             // These indicate failed processing that requires manual investigation and potential reprocessing.
-        }
+        };
     }
 
     @Override
@@ -298,6 +312,15 @@ public class PaymentServiceImp implements PaymentService {
         // complete registration if threshold met
         tuitionAccountDomainService.updateTuitionAccountAndProcessRegistration(payment.getId());
 
+        eventPublisher.publishEvent(
+                new PaymentVerifiedEvent(
+                        payment.getId(),
+                        payment.getTuitionAccount().getId(),
+                        payment.getTuitionAccount().getStudent().getId(),
+                        payment.getAmount()
+                )
+        );
+
         return PaymentMapper.toDto(payment);
     }
 
@@ -330,6 +353,14 @@ public class PaymentServiceImp implements PaymentService {
         // The audit trail shows Bursar rejected it and why
         payment.setStatus(PaymentStatus.FAILED);
         paymentRepository.save(payment);
+
+        eventPublisher.publishEvent(
+                new PaymentFailedEvent(
+                        payment.getId(),
+                        payment.getTuitionAccount().getStudent().getId(),
+                        request.getReason()
+                )
+        );
 
         log.info("Bank transfer {} rejected by Bursar {}. " +
                         "Reason: {}",
@@ -470,6 +501,15 @@ public class PaymentServiceImp implements PaymentService {
 
                 tuitionAccountDomainService.updateTuitionAccountAndProcessRegistration(payment.getId());
 
+                eventPublisher.publishEvent(
+                        new PaymentVerifiedEvent(
+                                payment.getId(),
+                                payment.getTuitionAccount().getId(),
+                                payment.getTuitionAccount().getStudent().getId(),
+                                payment.getAmount()
+                        )
+                );
+
                 log.info("Payment {} verified via manual check. " +
                         "Amount: ₦{}", reference, paidAmountNaira);
             } else {
@@ -555,7 +595,7 @@ public class PaymentServiceImp implements PaymentService {
                 randomPart.substring(0, 12);
     }
 
-    private void processChargeSuccess(
+    private Payment processChargeSuccess(
             Map<String, Object> data,
             String reference) {
 
@@ -570,7 +610,7 @@ public class PaymentServiceImp implements PaymentService {
             log.warn("Webhook received for unknown reference: {}. " +
                     "This could be a test event from Paystack " +
                     "dashboard.", reference);
-            return;
+            return null;
         }
 
         // IDEMPOTENCY CHECK — most important guard
@@ -587,7 +627,7 @@ public class PaymentServiceImp implements PaymentService {
                             "duplicate webhook ignored. " +
                             "Idempotency working correctly.",
                     reference);
-            return;
+            return null;
         }
 
         // Paystack itself says the payment failed
@@ -596,7 +636,7 @@ public class PaymentServiceImp implements PaymentService {
             paymentRepository.save(payment);
             log.warn("Paystack reported payment failure " +
                     "for reference: {}", reference);
-            return;
+            return null;
         }
 
         // Verify the amount Paystack charged matches
@@ -615,7 +655,7 @@ public class PaymentServiceImp implements PaymentService {
                     paidAmountNaira);
             payment.setStatus(PaymentStatus.FAILED);
             paymentRepository.save(payment);
-            return;
+            return null;
         }
 
         // All checks passed — mark the payment as verified
@@ -628,6 +668,8 @@ public class PaymentServiceImp implements PaymentService {
 
         log.info("Payment {} verified successfully. Amount: ₦{}",
                 reference, paidAmountNaira);
+
+        return payment;
     }
 
     private void validatePaymentRequest(
