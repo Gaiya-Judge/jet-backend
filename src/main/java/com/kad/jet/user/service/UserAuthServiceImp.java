@@ -38,6 +38,7 @@ public class UserAuthServiceImp implements UserAuthService{
     private final AuthenticationManager authenticationManager;
     private final RefreshTokenRepository refreshTokenRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final AccountActivationService accountActivationService;
 
     @Value("${jwt.refresh-expiration-ms}")
     private long jwtRefreshTokenExpiration;
@@ -89,9 +90,8 @@ public class UserAuthServiceImp implements UserAuthService{
     public AuthResponse refreshToken(RefreshTokenRequest refreshTokenRequest) {
         String refreshToken = refreshTokenRequest.getRefreshToken();
 
-        String identifier;
         try {
-            identifier = JwtUtil.extractEmail(refreshToken);
+            JwtUtil.extractEmail(refreshToken);
 
             if (JwtUtil.isTokenExpired(refreshToken)) {
                 throw new ResponseStatusException(
@@ -113,10 +113,21 @@ public class UserAuthServiceImp implements UserAuthService{
                     "Token has been revoked. Please log in again.");
         }
 
+        _User user = tokenEntity.getUser();
+        if (!user.isEnabled()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Account is inactive");
+        }
+
+        if (!user.isAccountNonLocked()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Account is banned");
+        }
+
         tokenEntity.setIsRevoked(true);
         refreshTokenRepository.save(tokenEntity);
-
-        _User user = tokenEntity.getUser();
 
         String newAccessToken = JwtUtil.generateAccessToken(user);
         String newRefreshToken = JwtUtil.generateRefreshToken(user);
@@ -146,6 +157,20 @@ public class UserAuthServiceImp implements UserAuthService{
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)){
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "you are not allowed to perform this action");
         }
+
+        if (request.getUserRole() == UserRole.STUDENT) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "student accounts must be created through the student account workflow");
+        }
+
+        if (request.getUserRole() == UserRole.SUPER_ADMIN
+                && currentUser.getUserRole() != UserRole.SUPER_ADMIN) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "only SUPER_ADMIN can create a SUPER_ADMIN account");
+        }
+
         //check if account already exists
         boolean userExists = userRepository.existsByEmail(request.getEmail());
 
@@ -160,12 +185,13 @@ public class UserAuthServiceImp implements UserAuthService{
                 .fullName(request.getFullName())
                 .createdAt(LocalDateTime.now())
                 .createdBy(currentUser)
-                .isActive(true)
+                .password(accountActivationService.createPendingPasswordHash())
+                .isActive(false)
                 .isBanned(false)
-                .password(passwordEncoder.encode(request.getPassword()))
                 .build();
 
         _User saveNewUserAccount = userRepository.save(newUserAccount);
+        accountActivationService.issueInitialActivation(saveNewUserAccount);
 
         //event publisher
         eventPublisher.publishEvent

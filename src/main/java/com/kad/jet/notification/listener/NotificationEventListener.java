@@ -258,9 +258,9 @@ public class NotificationEventListener {
                     newUser,
                     adminActor,
                     NotificationType.ACCOUNT_CREATED,
-                    "Welcome to JET",
-                    "Your account has been created. " +
-                            "Please log in and change your password.",
+                    "Your JET account is awaiting activation",
+                    "An activation email has been queued for your registered address. " +
+                            "Create your password using the activation link to access JET.",
                     "USER",
                     event.newUserId()
             );

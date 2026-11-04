@@ -37,9 +37,13 @@ public class SecurityConfig {
                 .cors(cors-> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth->
-                        auth.requestMatchers(HttpMethod.POST,"/api/user/auth/**")
+                        auth.requestMatchers(HttpMethod.POST,
+                                        "/api/user/auth/login",
+                                        "/api/user/auth/refresh-token",
+                                        "/api/user/auth/activate",
+                                        "/api/user/auth/activation/resend")
                                 .permitAll()
-                                .requestMatchers(HttpMethod.GET, "/api/user/auth/login/**","/api/ping")
+                                .requestMatchers(HttpMethod.GET, "/api/ping")
                                 .permitAll()
                                 .requestMatchers(HttpMethod.POST, "/api/payment/webhook")
                                 .permitAll()

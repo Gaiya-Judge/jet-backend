@@ -13,12 +13,12 @@ import com.kad.jet.student.repository.StudentProfileRepository;
 import com.kad.jet.user.model.UserRole;
 import com.kad.jet.user.model._User;
 import com.kad.jet.user.repository.UserRepository;
+import com.kad.jet.user.service.AccountActivationService;
 import com.kad.jet.user.utility.RoleChecker;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -31,11 +31,11 @@ import java.util.UUID;
 public class StudentProfileServiceImp implements StudentProfileService {
 
     private final StudentProfileRepository studentProfileRepository;
-    private final PasswordEncoder passwordEncoder;
     private final UserRepository userRepository;
     private final ProgramRepository programRepository;
     private final DepartmentRepository departmentRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final AccountActivationService accountActivationService;
 
     @Transactional
     @Override
@@ -73,14 +73,15 @@ public class StudentProfileServiceImp implements StudentProfileService {
                 .userRole(UserRole.STUDENT)
                 .email(request.getEmail())
                 .createdBy(currentUser)
-                .password(passwordEncoder.encode(request.getPassword()))
+                .password(accountActivationService.createPendingPasswordHash())
                 .fullName(request.getFullName())
-                .isActive(true)
+                .isActive(false)
                 .isBanned(false)
                 .createdAt(LocalDateTime.now())
                 .build();
 
         _User savedNewUser = userRepository.save(newUser);
+        accountActivationService.issueInitialActivation(savedNewUser);
 
         StudentProfile newStudentProfile = StudentProfile
                 .builder()

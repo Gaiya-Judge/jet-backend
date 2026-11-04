@@ -1,0 +1,41 @@
+# Copy these entries into the ignored application-local.yml for local development.
+# Values are deliberately blank/placeholders; supply them through environment variables.
+spring:
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SMTP_AUTH:true}
+          ssl:
+            enable: ${SMTP_SSL_ENABLE:false}
+          starttls:
+            enable: ${SMTP_STARTTLS_ENABLE:true}
+            required: ${SMTP_STARTTLS_REQUIRED:true}
+          connectiontimeout: ${SMTP_CONNECTION_TIMEOUT_MS:10000}
+          timeout: ${SMTP_TIMEOUT_MS:10000}
+          writetimeout: ${SMTP_WRITE_TIMEOUT_MS:10000}
+
+activation:
+  token:
+    expiration: ${ACTIVATION_TOKEN_EXPIRATION:PT24H}
+  frontend-base-url: ${FRONTEND_ACTIVATION_BASE_URL:}
+  email:
+    from: ${SMTP_FROM_EMAIL:}
+    sender-name: ${SMTP_SENDER_NAME:JET}
+  outbox:
+    encryption-key: ${ACTIVATION_OUTBOX_ENCRYPTION_KEY:}
+    poll-interval-ms: ${ACTIVATION_OUTBOX_POLL_INTERVAL_MS:5000}
+    batch-size: ${ACTIVATION_OUTBOX_BATCH_SIZE:20}
+    maximum-attempts: ${ACTIVATION_OUTBOX_MAX_ATTEMPTS:8}
+    initial-retry-delay: ${ACTIVATION_OUTBOX_INITIAL_RETRY_DELAY:PT30S}
+    maximum-retry-delay: ${ACTIVATION_OUTBOX_MAX_RETRY_DELAY:PT6H}
+  resend:
+    cooldown: ${ACTIVATION_RESEND_COOLDOWN:PT60S}
+    window: ${ACTIVATION_RESEND_WINDOW:PT24H}
+    maximum: ${ACTIVATION_RESEND_MAXIMUM:5}
+  password:
+    minimum-length: ${ACTIVATION_PASSWORD_MIN_LENGTH:12}

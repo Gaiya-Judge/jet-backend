@@ -2,6 +2,7 @@ package com.kad.jet.student.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Email;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -32,10 +33,8 @@ public class StudentAccountCreationRequest {
     private Integer level;
 
     @NotBlank(message = "student email required")
+    @Email(message = "student email must be valid")
     private String email;
-
-    @NotBlank(message = "password required")
-    private String password;
 
     @NotNull(message = "Department is required")
     private UUID departmentId;

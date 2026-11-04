@@ -1,6 +1,7 @@
 package com.kad.jet.user.dto;
 
 import com.kad.jet.user.model.UserRole;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -19,12 +20,10 @@ public class UsersAccountCreationRequest {
     UserRole userRole;
 
     @NotBlank(message = "user email required")
+    @Email(message = "user email must be valid")
     String email;
 
     @NotBlank(message = "insert user full name")
     String fullName;
-
-    @NotBlank(message = "password needed for user authentication")
-    String password;
 
 }
