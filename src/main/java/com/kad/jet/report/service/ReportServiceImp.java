@@ -49,7 +49,7 @@ public class ReportServiceImp implements ReportService {
                 UserRole.BURSAR, UserRole.ACCOUNTANT,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Semester semester = findSemester(semesterId);
@@ -135,7 +135,7 @@ public class ReportServiceImp implements ReportService {
                 UserRole.BURSAR, UserRole.ACCOUNTANT,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         List<TuitionAccount> accounts = tuitionAccountRepository
@@ -163,7 +163,7 @@ public class ReportServiceImp implements ReportService {
                 UserRole.REGISTRAR, UserRole.DEAN,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Semester semester = findSemester(semesterId);
@@ -205,7 +205,7 @@ public class ReportServiceImp implements ReportService {
                 UserRole.BURSAR, UserRole.ACCOUNTANT,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         List<Waiver> waivers = waiverRepository
@@ -236,7 +236,7 @@ public class ReportServiceImp implements ReportService {
                 UserRole.REGISTRAR, UserRole.DEAN,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Semester semester = findSemester(semesterId);

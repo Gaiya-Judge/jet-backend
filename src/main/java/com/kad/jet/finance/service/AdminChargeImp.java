@@ -41,7 +41,7 @@ public class AdminChargeImp  implements AdminChargeService{
     public AdminChargeResponse createAdminCharge(_User currentUser, CreateAdminChargeRequest request) {
         //check authorization
         if (!RoleChecker.is_bursary(currentUser)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request");
         }
 
@@ -115,7 +115,7 @@ public class AdminChargeImp  implements AdminChargeService{
     public AdminChargeResponse updateAdminCharge(_User currentUser, UUID id, UpdateAdminChargeRequest request) {
 
         if (!RoleChecker.is_bursary(currentUser)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request");
         }
 
@@ -164,7 +164,7 @@ public class AdminChargeImp  implements AdminChargeService{
     public void deleteAdminCharge(_User currentUser, UUID id) {
 
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.SUPER_ADMIN, UserRole.BURSAR)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request");
         }
         AdminCharge adminCharge = findById(id);

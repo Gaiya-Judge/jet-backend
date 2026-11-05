@@ -43,7 +43,7 @@ public class DepartmentServiceImp implements DepartmentService {
     public DepartmentResponse createDepartment(_User currentUser, CreateDepartmentRequest departmentRequest) {
         //check role
         if (!isAdmin(currentUser)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
         //check if program exits
         Program program = programRepository.findById(departmentRequest.getProgramId())
@@ -84,7 +84,7 @@ public class DepartmentServiceImp implements DepartmentService {
     public void softDeleteDepartment(_User currentUser, UUID departmentId) {
 
         if (!isAdmin(currentUser)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Department department = findById(departmentId);
@@ -106,7 +106,7 @@ public class DepartmentServiceImp implements DepartmentService {
     public DepartmentResponse updateDepartment(_User currentUser, UUID departmentId, UpdateDepartmentRequest departmentRequest) {
 
         if (!isAdmin(currentUser)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Department department = findById(departmentId);
@@ -144,7 +144,7 @@ public class DepartmentServiceImp implements DepartmentService {
     public DepartmentResponse adminGetDepartment(UUID departmentId, _User currentUser) {
 
         if (!isAdmin(currentUser)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Department department = findById(departmentId);
@@ -162,7 +162,7 @@ public class DepartmentServiceImp implements DepartmentService {
     @Override
     public DepartmentPageResponse<DepartmentResponse> adminGetAllDepartment(int size, int page, _User currentUSer) {
         if (!isAdmin(currentUSer)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUSer == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         if (size > 10) size = 10;
@@ -228,7 +228,7 @@ public class DepartmentServiceImp implements DepartmentService {
     @Override
     public List<DepartmentResponse> adminGetProgramDepartments(UUID programId, _User currentUser) {
         if (!isAdmin(currentUser)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         if (!programRepository.existsById(programId)){
@@ -247,7 +247,7 @@ public class DepartmentServiceImp implements DepartmentService {
     public DepartmentResponse assignHod(_User currentUser, UUID departmentId, AssignHodToDepartment assignHodToDepartment) {
 
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Department department = findById(departmentId);
@@ -279,7 +279,7 @@ public class DepartmentServiceImp implements DepartmentService {
     @Override
     public DepartmentResponse restoreSoftDeletedDepartment(_User currentUser, UUID departmentId) {
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Department department = findById(departmentId);

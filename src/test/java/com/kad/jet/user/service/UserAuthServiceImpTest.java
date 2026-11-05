@@ -65,6 +65,26 @@ class UserAuthServiceImpTest {
     }
 
     @Test
+    void authenticatedUserWithoutAccountCreationRoleIsForbidden() {
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.userAccountCreation(actor(UserRole.REGISTRAR), request(UserRole.STUDENT)));
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        verifyNoInteractions(userRepository, passwordEncoder, eventPublisher);
+    }
+
+    @Test
+    void missingPrincipalRemainsUnauthorizedAtServiceBoundary() {
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.userAccountCreation(null, request(UserRole.STUDENT)));
+
+        assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
+        verifyNoInteractions(userRepository, passwordEncoder, eventPublisher);
+    }
+
+    @Test
     void itAdminCanCreateOperationalAndItAdminAccounts() {
         _User actor = actor(UserRole.IT_ADMIN);
         when(userRepository.save(any(_User.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -163,6 +183,25 @@ class UserAuthServiceImpTest {
                     ResponseStatusException.class,
                     () -> service.refreshToken(refreshRequest()));
             assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
+        }
+
+        verify(refreshTokenRepository, never()).save(any());
+    }
+
+    @Test
+    void refreshRejectsUnknownSubmittedCredentialAsUnauthorized() {
+        when(refreshTokenRepository.findByToken("valid-refresh")).thenReturn(Optional.empty());
+
+        try (MockedStatic<JwtUtil> jwt = mockStatic(JwtUtil.class)) {
+            jwt.when(() -> JwtUtil.extractEmail("valid-refresh")).thenReturn("actor@example.test");
+            jwt.when(() -> JwtUtil.isTokenExpired("valid-refresh")).thenReturn(false);
+
+            ResponseStatusException exception = assertThrows(
+                    ResponseStatusException.class,
+                    () -> service.refreshToken(refreshRequest()));
+
+            assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
+            assertEquals("Invalid refresh token", exception.getReason());
         }
 
         verify(refreshTokenRepository, never()).save(any());

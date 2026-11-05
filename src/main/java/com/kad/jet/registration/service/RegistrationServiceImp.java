@@ -81,7 +81,7 @@ public class RegistrationServiceImp implements RegistrationService{
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.STUDENT,
                 UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         boolean isAdmin = RoleChecker.hasAnyRole(currentUser,
@@ -139,7 +139,7 @@ public class RegistrationServiceImp implements RegistrationService{
                 UserRole.REGISTRAR, UserRole.IT_ADMIN,
                 UserRole.SUPER_ADMIN, UserRole.BURSAR)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Registration registration = findById(id);
@@ -156,7 +156,7 @@ public class RegistrationServiceImp implements RegistrationService{
                 UserRole.DEAN, UserRole.REGISTRAR,
                 UserRole.IT_ADMIN, UserRole.SUPER_ADMIN, UserRole.BURSAR)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         return registrationRepository.findAll(pageable)
@@ -168,7 +168,7 @@ public class RegistrationServiceImp implements RegistrationService{
 
         if (!RoleChecker.is_dean(currentUser)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         return registrationRepository
@@ -182,7 +182,7 @@ public class RegistrationServiceImp implements RegistrationService{
 
         if (!RoleChecker.is_student(currentUser)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         return registrationRepository
@@ -202,7 +202,7 @@ public class RegistrationServiceImp implements RegistrationService{
 
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.STUDENT, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         boolean isAdmin = RoleChecker.hasAnyRole(currentUser,
@@ -268,7 +268,7 @@ public class RegistrationServiceImp implements RegistrationService{
                 UserRole.STUDENT, UserRole.IT_ADMIN,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Registration registration = findById(registrationId);
@@ -314,7 +314,7 @@ public class RegistrationServiceImp implements RegistrationService{
                 UserRole.REGISTRAR, UserRole.IT_ADMIN,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Registration registration = findById(registrationId);
@@ -340,7 +340,7 @@ public class RegistrationServiceImp implements RegistrationService{
                 UserRole.STUDENT, UserRole.IT_ADMIN,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         boolean isAdmin = RoleChecker.hasAnyRole(currentUser,
@@ -391,7 +391,7 @@ public class RegistrationServiceImp implements RegistrationService{
 
         if (!RoleChecker.is_dean(currentUser)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Registration registration = findById(registrationId);
@@ -445,7 +445,7 @@ public class RegistrationServiceImp implements RegistrationService{
     public RegistrationResponse rejectRegistration(_User currentUser, UUID registrationId, DeanReviewRequest request) {
         if (!RoleChecker.is_dean(currentUser)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Registration registration = findById(registrationId);
@@ -493,7 +493,7 @@ public class RegistrationServiceImp implements RegistrationService{
                 UserRole.STUDENT, UserRole.IT_ADMIN,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Registration registration = findById(registrationId);
@@ -575,7 +575,7 @@ public class RegistrationServiceImp implements RegistrationService{
                 UserRole.STUDENT, UserRole.IT_ADMIN,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         boolean isAdmin = RoleChecker.hasAnyRole(currentUser,
@@ -747,7 +747,7 @@ public class RegistrationServiceImp implements RegistrationService{
                 UserRole.STUDENT, UserRole.IT_ADMIN,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         boolean isAdmin = RoleChecker.hasAnyRole(currentUser,
@@ -862,7 +862,7 @@ public class RegistrationServiceImp implements RegistrationService{
                     UserRole.STUDENT, UserRole.IT_ADMIN,
                     UserRole.SUPER_ADMIN)) {
                 throw new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED, "unauthorized request");
+                        currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
             }
 
             boolean isAdmin = RoleChecker.hasAnyRole(currentUser,

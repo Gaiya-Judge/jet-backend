@@ -44,7 +44,7 @@ public class FeeStructureServiceImp implements FeeStructureService{
     public FeeStructureResponse createFeeStructure(_User currentUser, CreateFeeStructureRequest structureRequest) {
         //check authorization
         if (!RoleChecker.is_bursary(currentUser)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request");
         }
 
@@ -96,7 +96,7 @@ public class FeeStructureServiceImp implements FeeStructureService{
     @Override
     public FeeStructureResponse getFeeStructureResponse(_User currentUser, UUID id) {
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.SUPER_ADMIN, UserRole.ACCOUNTANT, UserRole.BURSAR)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request");
         }
         return FeeStructureMapper.toDto(findById(id));
@@ -105,7 +105,7 @@ public class FeeStructureServiceImp implements FeeStructureService{
     @Override
     public Page<FeeStructureResponse> getAllFeeStructureResponse(_User currentUser, Pageable pageable) {
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.ACCOUNTANT, UserRole.SUPER_ADMIN, UserRole.BURSAR)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request");
         }
 
@@ -133,7 +133,7 @@ public class FeeStructureServiceImp implements FeeStructureService{
     @Transactional
     public FeeStructureResponse updateFeeStructure(_User currentUser, UUID feeStructureId, UpdateFeeStructureRequest structureRequest) {
         if (!RoleChecker.is_bursary(currentUser)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request");
         }
 
@@ -163,7 +163,7 @@ public class FeeStructureServiceImp implements FeeStructureService{
     public void deleteFeeStructure(_User currentUser, UUID feeStructureId) {
 
         if (!RoleChecker.is_superAdmin(currentUser)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request");
         }
 

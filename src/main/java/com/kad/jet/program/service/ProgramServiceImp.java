@@ -39,7 +39,7 @@ public class ProgramServiceImp implements ProgramService {
     public ProgramResponse createNewProgram(_User currentUser, CreateProgramRequest programRequest) {
        //check role permission
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
         //check if it already exits
         boolean alreadyExists = programRepository.existsByName(programRequest.getName());
@@ -74,7 +74,7 @@ public class ProgramServiceImp implements ProgramService {
     @Override
     public void deleteProgram(_User currentUser, UUID programId) {
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Program program = findById(programId);
@@ -106,7 +106,7 @@ public class ProgramServiceImp implements ProgramService {
     @Override
     public ProgramResponse getProgramById(UUID programId, _User currentUser) {
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.SUPER_ADMIN, UserRole.IT_ADMIN)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
         Program program = programRepository.findById(programId)
                 .orElseThrow(()-> new ResponseStatusException(HttpStatus.NOT_FOUND, "program not found"));
@@ -119,7 +119,7 @@ public class ProgramServiceImp implements ProgramService {
     public ProgramResponse updateProgram(_User currentUser, UUID programId, UpdateProgramRequest programRequest) {
 
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Program program = findById(programId);
@@ -166,7 +166,7 @@ public class ProgramServiceImp implements ProgramService {
     public ProgramPageResponse<ProgramResponse> getAllProgram(int page, int size, _User currentUser) {
 
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
         if (size > 10) size = 10;
         if (page < 0) page = 0;

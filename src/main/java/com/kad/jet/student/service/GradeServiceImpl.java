@@ -57,7 +57,7 @@ public class GradeServiceImpl implements GradeService{
                 UserRole.IT_ADMIN, UserRole.HOD,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         // Validate file is provided and is a CSV
@@ -194,7 +194,7 @@ public class GradeServiceImpl implements GradeService{
                 UserRole.IT_ADMIN, UserRole.HOD,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         // Student can only see their own grades
@@ -219,7 +219,7 @@ public class GradeServiceImpl implements GradeService{
                 UserRole.IT_ADMIN, UserRole.HOD,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         return gradeImportLogRepository.findAll(pageable);
@@ -232,7 +232,7 @@ public class GradeServiceImpl implements GradeService{
                 UserRole.IT_ADMIN, UserRole.HOD,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         return gradeImportLogRepository
@@ -250,7 +250,7 @@ public class GradeServiceImpl implements GradeService{
                 UserRole.IT_ADMIN, UserRole.HOD,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         if (RoleChecker.is_student(currentUser) &&
@@ -326,7 +326,7 @@ public class GradeServiceImpl implements GradeService{
                 UserRole.IT_ADMIN, UserRole.HOD,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         if (RoleChecker.is_student(currentUser) &&

@@ -31,7 +31,7 @@ public class SystemConfigApiServiceImp implements SystemConfigApiService {
         if (!RoleChecker.hasAnyRole(currentUser,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         return systemConfigRepository.findAll()
@@ -46,7 +46,7 @@ public class SystemConfigApiServiceImp implements SystemConfigApiService {
         if (!RoleChecker.hasAnyRole(currentUser,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         return SystemConfigMapper.toDto(findByKey(key));
@@ -59,7 +59,7 @@ public class SystemConfigApiServiceImp implements SystemConfigApiService {
         if (!RoleChecker.hasAnyRole(currentUser,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         SystemConfig config = findByKey(key);

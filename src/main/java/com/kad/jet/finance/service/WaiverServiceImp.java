@@ -45,7 +45,7 @@ public class WaiverServiceImp implements WaiverService {
 
         if (!RoleChecker.is_bursary(currentUser)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         TuitionAccount account = findTuitionAccount(
@@ -152,7 +152,7 @@ public class WaiverServiceImp implements WaiverService {
                 UserRole.BURSAR, UserRole.STUDENT,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         TuitionAccount account = findTuitionAccount(
@@ -199,7 +199,7 @@ public class WaiverServiceImp implements WaiverService {
         if (!RoleChecker.hasAnyRole(currentUser,
                 UserRole.BURSAR, UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         int systemMinPercentage = systemConfigService.getIntValue(
@@ -232,7 +232,7 @@ public class WaiverServiceImp implements WaiverService {
         if (!RoleChecker.hasAnyRole(currentUser,
                 UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "only SUPER_ADMIN can remove a waiver");
         }
 

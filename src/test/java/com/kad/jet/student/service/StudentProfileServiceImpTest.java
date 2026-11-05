@@ -20,6 +20,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
 
@@ -108,5 +110,22 @@ class StudentProfileServiceImpTest {
 
         verify(eventPublisher).publishEvent(any(AccountCreatedEvent.class));
         verify(accountActivationService).issueInitialActivation(savedUser);
+    }
+
+    @Test
+    void studentCannotReadAnotherStudentsProfile() {
+        _User student = _User.builder()
+                .id(UUID.randomUUID())
+                .email("student@example.test")
+                .userRole(UserRole.STUDENT)
+                .build();
+        UUID anotherStudentId = UUID.randomUUID();
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.getStudentProfileById(anotherStudentId, student));
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        verifyNoInteractions(studentProfileRepository);
     }
 }

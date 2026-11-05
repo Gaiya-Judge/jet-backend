@@ -105,7 +105,7 @@ public class UserAuthServiceImp implements UserAuthService{
         }
 
         RefreshToken tokenEntity = refreshTokenRepository.findByToken(refreshToken)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Token not found in database"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token"));
 
         if (tokenEntity.getIsRevoked()) {
             throw new ResponseStatusException(
@@ -155,7 +155,7 @@ public class UserAuthServiceImp implements UserAuthService{
     public UserResponse userAccountCreation(_User currentUser, UsersAccountCreationRequest request) {
         //check if current user have permission
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "you are not allowed to perform this action");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "you are not allowed to perform this action");
         }
 
         if (request.getUserRole() == UserRole.STUDENT) {
@@ -210,7 +210,7 @@ public class UserAuthServiceImp implements UserAuthService{
         if (!RoleChecker.hasAnyRole(currentUser,
                 UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)){
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request"
             );
         }
@@ -245,7 +245,7 @@ public class UserAuthServiceImp implements UserAuthService{
         if (!RoleChecker.hasAnyRole(currentUser,
                 UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)){
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request"
             );
         }
@@ -303,7 +303,7 @@ public class UserAuthServiceImp implements UserAuthService{
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.SUPER_ADMIN,
                 UserRole.IT_ADMIN)){
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request"
             );
         }

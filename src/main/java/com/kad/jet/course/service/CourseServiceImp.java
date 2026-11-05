@@ -39,7 +39,7 @@ public class CourseServiceImp implements CourseService {
     public CourseResponse createCourse(CreateCourseRequest request, _User currentUser) {
 
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.SUPER_ADMIN, UserRole.HOD, UserRole.IT_ADMIN)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         if (!VALID_LEVELS.contains(request.getLevel())){
@@ -66,7 +66,7 @@ public class CourseServiceImp implements CourseService {
 
         if (currentUser.getUserRole() == UserRole.HOD &&
                 !currentUser.equals(department.getHod())){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "you are not allowed to add course to another department");
         }
 
@@ -112,7 +112,7 @@ public class CourseServiceImp implements CourseService {
     public Page<CourseResponse> getAllCourses(Pageable pageable, _User currentUser) {
 
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.HOD, UserRole.SUPER_ADMIN, UserRole.IT_ADMIN)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
         return courseRepository.findAll(pageable)
                 .map(this::toResponse);
@@ -150,7 +150,7 @@ public class CourseServiceImp implements CourseService {
     @Override
     public CourseResponse updateCourse(UUID id, UpdateCourseRequest request, _User currentUser) {
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.HOD, UserRole.SUPER_ADMIN)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Course course = findById(id);
@@ -189,7 +189,7 @@ public class CourseServiceImp implements CourseService {
     @Override
     public void deleteCourse(UUID id, _User currentUser) {
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.HOD, UserRole.SUPER_ADMIN)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized request");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Course course = findById(id);

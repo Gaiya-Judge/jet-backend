@@ -62,7 +62,7 @@ public class PaymentServiceImp implements PaymentService {
 
         if (!RoleChecker.is_student(currentUser)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         // Read tuition account — no transaction needed for reads
@@ -213,7 +213,7 @@ public class PaymentServiceImp implements PaymentService {
     public PaymentResponse submitBankTransfer(_User currentUser, BankTransferRequest request) {
         if (!RoleChecker.is_student(currentUser)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         TuitionAccount tuitionAccount = findTuitionAccount(
@@ -274,7 +274,7 @@ public class PaymentServiceImp implements PaymentService {
     public PaymentResponse verifyBankTransfer(_User currentUser, UUID paymentId, VerifyPaymentRequest request) {
         if (!RoleChecker.is_bursary(currentUser)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Payment payment = findPaymentById(paymentId);
@@ -329,7 +329,7 @@ public class PaymentServiceImp implements PaymentService {
     public PaymentResponse rejectBankTransfer(_User currentUser, UUID paymentId, RejectPaymentRequest request) {
         if (!RoleChecker.is_bursary(currentUser)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         Payment payment = findPaymentById(paymentId);
@@ -377,7 +377,7 @@ public class PaymentServiceImp implements PaymentService {
                 UserRole.STUDENT, UserRole.BURSAR,
                 UserRole.ACCOUNTANT, UserRole.SUPER_ADMIN)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         TuitionAccount account = findTuitionAccount(tuitionAccountId);
@@ -410,7 +410,7 @@ public class PaymentServiceImp implements PaymentService {
     public Page<PaymentResponse> getPendingBankTransfers(_User currentUser, Pageable pageable) {
         if (!RoleChecker.is_bursary(currentUser)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED, "unauthorized request");
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
         return paymentRepository
@@ -427,7 +427,7 @@ public class PaymentServiceImp implements PaymentService {
        //check authorization
         if (!RoleChecker.is_student(currentUser)){
             throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
+                    currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request");
         }
 

@@ -36,7 +36,7 @@ public class SemesterServiceImp implements SemesterService {
     @Transactional
     public SemesterResponse createSemester(_User currentUser, CreateSemesterRequest semesterRequest) {
         if (!isAdmin(currentUser)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request");
         }
 
@@ -85,7 +85,7 @@ public class SemesterServiceImp implements SemesterService {
     @Transactional
     public SemesterResponse updateSemester(_User currentUser, UUID semesterId, UpdateSemesterRequest updateSemester) {
         if (!isAdmin(currentUser)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request");
         }
 
@@ -107,7 +107,7 @@ public class SemesterServiceImp implements SemesterService {
     public SemesterResponse updateStatus(_User currentUser, UUID semesterId, SemesterStatusRequest semesterStatusRequest) {
 
         if (!isAdmin(currentUser)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized");
         }
 
@@ -156,7 +156,7 @@ public class SemesterServiceImp implements SemesterService {
     @Transactional
     public SemesterResponse configureAddAndDrop(_User currentUser, UUID semesterId, AddDropRequest addDropRequest) {
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.SUPER_ADMIN, UserRole.DEAN)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
                     "unauthorized request");
         }
 

@@ -42,7 +42,7 @@ public class StudentProfileServiceImp implements StudentProfileService {
     public StudentProfileResponse createStudentAccount(_User currentUser, StudentAccountCreationRequest request) {
         //check role
         if (!RoleChecker.hasAnyRole(currentUser, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)){
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "you are not allowed to perform this action");
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "you are not allowed to perform this action");
         }
         //check if student already exits
         Optional<StudentProfile> studentProfile = studentProfileRepository.findByMatricNumber(request.getMatricNumber());
