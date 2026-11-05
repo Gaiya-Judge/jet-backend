@@ -60,21 +60,27 @@ class RegistrationCarryoverTest {
 
     private _User student;
     private Course firstSemesterCourse;
+    private Course secondSemesterCourse;
     private Semester firstSemester;
+    private Semester secondSemester;
     private Semester summer;
 
     @BeforeEach
     void setUp() {
         student = _User.builder().id(UUID.randomUUID()).build();
         firstSemesterCourse = course(SemesterType.FIRST);
+        secondSemesterCourse = course(SemesterType.SECOND);
         firstSemester = semester(SemesterType.FIRST);
+        secondSemester = semester(SemesterType.SECOND);
         summer = semester(SemesterType.SUMMER);
     }
 
     @Test
     void failedCourseIsEligibleInItsOriginalSemesterAndSummerOnly() {
         when(studentGradeRepository.findByStudentId(student.getId()))
-                .thenReturn(List.of(grade(firstSemesterCourse, "F")));
+                .thenReturn(List.of(
+                        grade(firstSemesterCourse, "F", summer),
+                        grade(secondSemesterCourse, "F", firstSemester)));
 
         assertTrue(service.isCarryoverEligible(student, firstSemesterCourse,
                 firstSemester));
@@ -82,20 +88,45 @@ class RegistrationCarryoverTest {
                 summer));
         assertFalse(service.isCarryoverEligible(student, firstSemesterCourse,
                 semester(SemesterType.SECOND)));
+
+        assertFalse(service.isCarryoverEligible(student, secondSemesterCourse,
+                firstSemester));
+        assertTrue(service.isCarryoverEligible(student, secondSemesterCourse,
+                secondSemester));
+        assertTrue(service.isCarryoverEligible(student, secondSemesterCourse,
+                summer));
     }
 
     @Test
     void completedCourseAndCourseWithoutOutstandingGradeAreNotCarryovers() {
         when(studentGradeRepository.findByStudentId(student.getId()))
                 .thenReturn(List.of(grade(firstSemesterCourse, "F"),
-                        grade(firstSemesterCourse, "C")));
-        assertFalse(service.isCarryoverEligible(student, firstSemesterCourse,
-                firstSemester));
-
-        when(studentGradeRepository.findByStudentId(student.getId()))
+                        grade(firstSemesterCourse, "C")))
+                .thenReturn(List.of(grade(firstSemesterCourse, "A"),
+                                grade(firstSemesterCourse, "B"),
+                                grade(firstSemesterCourse, "C")))
                 .thenReturn(List.of());
         assertFalse(service.isCarryoverEligible(student, firstSemesterCourse,
+                firstSemester));
+        assertFalse(service.isCarryoverEligible(student, firstSemesterCourse,
+                firstSemester));
+        assertFalse(service.isCarryoverEligible(student, firstSemesterCourse,
                 summer));
+    }
+
+    @Test
+    void eachFailingGradeQualifiesForCarryoverIndividually() {
+        when(studentGradeRepository.findByStudentId(student.getId()))
+                .thenReturn(List.of(grade(firstSemesterCourse, "D", summer)))
+                .thenReturn(List.of(grade(firstSemesterCourse, "E", summer)))
+                .thenReturn(List.of(grade(firstSemesterCourse, "F", summer)));
+
+        assertTrue(service.isCarryoverEligible(student, firstSemesterCourse,
+                firstSemester));
+        assertTrue(service.isCarryoverEligible(student, firstSemesterCourse,
+                firstSemester));
+        assertTrue(service.isCarryoverEligible(student, firstSemesterCourse,
+                firstSemester));
     }
 
     @Test
@@ -216,5 +247,10 @@ class RegistrationCarryoverTest {
     private StudentGrade grade(Course course, String result) {
         return StudentGrade.builder().id(UUID.randomUUID()).student(student)
                 .course(course).grade(result).build();
+    }
+
+    private StudentGrade grade(Course course, String result, Semester attemptedSemester) {
+        return StudentGrade.builder().id(UUID.randomUUID()).student(student)
+                .course(course).semester(attemptedSemester).grade(result).build();
     }
 }
