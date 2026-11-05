@@ -1,5 +1,7 @@
 package com.kad.jet.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kad.jet.exception.ErrorResponse;
 import com.kad.jet.security.service.CustomUserDetailsService;
 import com.kad.jet.security.service.JwtFilter;
 import lombok.RequiredArgsConstructor;
@@ -16,12 +18,15 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 @RequiredArgsConstructor
@@ -29,6 +34,7 @@ public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
     private final CustomUserDetailsService customUserDetails;
+    private final ObjectMapper objectMapper;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -50,9 +56,34 @@ public class SecurityConfig {
                                 .anyRequest().authenticated())
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(authenticationEntryPoint())
+                        .accessDeniedHandler(accessDeniedHandler()))
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
+    }
+
+    @Bean
+    public AuthenticationEntryPoint authenticationEntryPoint() {
+        return (request, response, exception) -> writeSecurityError(
+                response, HttpServletResponse.SC_UNAUTHORIZED, request.getRequestURI(),
+                "unauthorized", "authentication required");
+    }
+
+    @Bean
+    public AccessDeniedHandler accessDeniedHandler() {
+        return (request, response, exception) -> writeSecurityError(
+                response, HttpServletResponse.SC_FORBIDDEN, request.getRequestURI(),
+                "access denied", "you do not have permission to perform this action");
+    }
+
+    private void writeSecurityError(HttpServletResponse response, int status, String path,
+                                    String error, String message) throws java.io.IOException {
+        response.setStatus(status);
+        response.setContentType("application/json");
+        response.setCharacterEncoding(java.nio.charset.StandardCharsets.UTF_8.name());
+        objectMapper.writeValue(response.getWriter(), new ErrorResponse(status, path, message, error));
     }
 
     @Bean

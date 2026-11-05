@@ -25,8 +25,6 @@ import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-import javax.naming.AuthenticationException;
-import java.nio.file.AccessDeniedException;
 import java.util.stream.Collectors;
 
 @ControllerAdvice
@@ -276,38 +274,6 @@ public class GlobalExceptionHandler {
                 ));
     }
 
-
-    @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ErrorResponse> authenticationExceptionHandler(
-            AuthenticationException ex,
-            HttpServletRequest request) {
-
-        logger.warn("authentication error: {}", ex.getMessage());
-
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(new ErrorResponse(
-                        HttpStatus.UNAUTHORIZED.value(),
-                        request.getRequestURI(),
-                        "authentication failed",
-                        "unauthorized"
-                ));
-    }
-
-    @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ErrorResponse> accessDeniedHandler(
-            AccessDeniedException ex,
-            HttpServletRequest request) {
-
-        logger.warn("access denied: {}", ex.getMessage());
-
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(new ErrorResponse(
-                        HttpStatus.FORBIDDEN.value(),
-                        request.getRequestURI(),
-                        "you do not have permission to perform this action",
-                        "access denied"
-                ));
-    }
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> constraintViolationHandler(
