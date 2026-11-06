@@ -237,11 +237,18 @@ public class RegistrationServiceImp implements RegistrationService{
                         HttpStatus.NOT_FOUND,
                         "student profile not found"));
 
-        // Run all course validations
-        validateCourseForRegistration(course, studentProfile, registration, registrationId,false);
-
         boolean carryover = isCarryoverEligible(registration.getStudent(), course,
                 registration.getSemester());
+
+        // Ensure currently outstanding compulsory carryovers are present
+        // before validating an ordinary course addition.
+        if (!carryover) {
+            autoAddCarryoverCourses(registration, registration.getStudent());
+        }
+
+        // Run all course validations
+        validateCourseForRegistration(course, studentProfile, registration,
+                registrationId, carryover);
 
         // Add the course
         RegistrationItem item = RegistrationItem.builder()
