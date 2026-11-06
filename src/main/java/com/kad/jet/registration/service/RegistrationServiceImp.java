@@ -2,6 +2,7 @@ package com.kad.jet.registration.service;
 
 import com.kad.jet.config.SystemConfigKeys;
 import com.kad.jet.config.service.SystemConfigService;
+import com.kad.jet.exception.CarryoverCreditLimitException;
 import com.kad.jet.course.model.Course;
 import com.kad.jet.course.repository.CourseRepository;
 import com.kad.jet.finance.model.*;
@@ -1087,7 +1088,7 @@ public class RegistrationServiceImp implements RegistrationService{
 
         if (failedGrades.isEmpty()) return;
 
-        int totalCarryoverUnits = 0;
+        List<Course> eligibleCarryovers = new ArrayList<>();
         Set<UUID> addedCourseIds = new HashSet<>();
 
         for (StudentGrade failedGrade : failedGrades) {
@@ -1104,16 +1105,34 @@ public class RegistrationServiceImp implements RegistrationService{
                     .existsByRegistrationIdAndCourseId(
                             registration.getId(), courseId)) continue;
 
+            eligibleCarryovers.add(failedGrade.getCourse());
+        }
+
+        if (eligibleCarryovers.isEmpty()) return;
+
+        int totalCarryoverUnits = eligibleCarryovers.stream()
+                .mapToInt(Course::getCreditUnits)
+                .sum();
+        int maximumCreditUnits = getMaxCreditUnits();
+        if (totalCarryoverUnits > maximumCreditUnits) {
+            List<CarryoverCreditLimitException.CourseDetail> details =
+                    eligibleCarryovers.stream()
+                            .map(course -> new CarryoverCreditLimitException.CourseDetail(
+                                    course.getId(), course.getCourseCode(),
+                                    course.getTitle(), course.getCreditUnits()))
+                            .toList();
+            throw new CarryoverCreditLimitException(maximumCreditUnits,
+                    totalCarryoverUnits, details);
+        }
+
+        for (Course course : eligibleCarryovers) {
             RegistrationItem item = RegistrationItem.builder()
                     .registration(registration)
-                    .course(failedGrade.getCourse())
+                    .course(course)
                     .isCarryOver(true)
                     .isDroppable(false)
                     .build();
-
             registrationItemRepository.save(item);
-            totalCarryoverUnits += failedGrade
-                    .getCourse().getCreditUnits();
         }
 
         registration.setTotalCreditUnits(

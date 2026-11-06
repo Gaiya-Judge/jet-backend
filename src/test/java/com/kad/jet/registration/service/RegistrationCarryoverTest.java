@@ -1,5 +1,6 @@
 package com.kad.jet.registration.service;
 
+import com.kad.jet.config.SystemConfigKeys;
 import com.kad.jet.config.service.SystemConfigService;
 import com.kad.jet.course.model.Course;
 import com.kad.jet.course.model.CourseType;
@@ -136,6 +137,7 @@ class RegistrationCarryoverTest {
                         grade(firstSemesterCourse, "E")));
         when(registrationItemRepository.existsByRegistrationIdAndCourseId(
                 any(), any())).thenReturn(false);
+        when(systemConfigService.getIntValue(any())).thenReturn(30);
 
         Registration registration = Registration.builder()
                 .id(UUID.randomUUID()).student(student).semester(firstSemester)
@@ -153,6 +155,77 @@ class RegistrationCarryoverTest {
     }
 
     @Test
+    void allEligibleCarryoversWithinMaximumAreAdded() {
+        Course anotherCourse = course(SemesterType.FIRST);
+        anotherCourse.setCourseCode("JET102");
+        when(studentGradeRepository.findByStudentId(student.getId()))
+                .thenReturn(List.of(grade(firstSemesterCourse, "F"),
+                        grade(anotherCourse, "D")));
+        when(registrationItemRepository.existsByRegistrationIdAndCourseId(
+                any(), any())).thenReturn(false);
+        when(systemConfigService.getIntValue(any())).thenReturn(6);
+        Registration registration = Registration.builder()
+                .id(UUID.randomUUID()).student(student).semester(firstSemester)
+                .totalCreditUnits(0).build();
+
+        service.autoAddCarryoverCourses(registration, student);
+
+        ArgumentCaptor<RegistrationItem> captor =
+                ArgumentCaptor.forClass(RegistrationItem.class);
+        verify(registrationItemRepository, times(2)).save(captor.capture());
+        assertTrue(captor.getAllValues().stream().allMatch(
+                item -> item.getIsCarryOver() && !item.getIsDroppable()));
+        assertEquals(6, registration.getTotalCreditUnits());
+    }
+
+    @Test
+    void carryoversExactlyAtMaximumAreAccepted() {
+        when(studentGradeRepository.findByStudentId(student.getId()))
+                .thenReturn(List.of(grade(firstSemesterCourse, "F")));
+        when(registrationItemRepository.existsByRegistrationIdAndCourseId(
+                any(), any())).thenReturn(false);
+        when(systemConfigService.getIntValue(any())).thenReturn(3);
+        Registration registration = Registration.builder()
+                .id(UUID.randomUUID()).student(student).semester(firstSemester)
+                .totalCreditUnits(0).build();
+
+        assertDoesNotThrow(() -> service.autoAddCarryoverCourses(registration, student));
+
+        verify(registrationItemRepository).save(any());
+        assertEquals(3, registration.getTotalCreditUnits());
+    }
+
+    @Test
+    void excessiveCarryoversThrowDetailsBeforeSavingAnyItems() {
+        Course anotherCourse = course(SemesterType.FIRST);
+        anotherCourse.setCourseCode("JET102");
+        when(studentGradeRepository.findByStudentId(student.getId()))
+                .thenReturn(List.of(grade(firstSemesterCourse, "F"),
+                        grade(anotherCourse, "E")));
+        when(registrationItemRepository.existsByRegistrationIdAndCourseId(
+                any(), any())).thenReturn(false);
+        when(systemConfigService.getIntValue(any())).thenReturn(5);
+        Registration registration = Registration.builder()
+                .id(UUID.randomUUID()).student(student).semester(firstSemester)
+                .totalCreditUnits(0).build();
+
+        var error = assertThrows(
+                com.kad.jet.exception.CarryoverCreditLimitException.class,
+                () -> service.autoAddCarryoverCourses(registration, student));
+
+        assertEquals(5, error.getMaximumCreditUnits());
+        assertEquals(6, error.getTotalCarryoverCreditUnits());
+        assertEquals(2, error.getCourses().size());
+        assertTrue(error.getCourses().stream().anyMatch(course ->
+                course.getCourseId().equals(firstSemesterCourse.getId())
+                        && course.getCourseCode().equals("JET101")
+                        && course.getCourseTitle().equals("Course")
+                        && course.getCreditUnits() == 3));
+        verify(registrationItemRepository, never()).save(any());
+        verify(registrationRepository, never()).save(any());
+    }
+
+    @Test
     void draftWithoutOutstandingCarryoversAddsNothing() {
         when(studentGradeRepository.findByStudentId(student.getId()))
                 .thenReturn(List.of(grade(firstSemesterCourse, "B")));
@@ -164,6 +237,21 @@ class RegistrationCarryoverTest {
 
         verify(registrationItemRepository, never()).save(any());
         assertEquals(0, registration.getTotalCreditUnits());
+    }
+
+    @Test
+    void ineligibleSemesterCarryoverDoesNotReadMaximumOrSaveItem() {
+        when(studentGradeRepository.findByStudentId(student.getId()))
+                .thenReturn(List.of(grade(firstSemesterCourse, "F")));
+        Registration registration = Registration.builder()
+                .id(UUID.randomUUID()).student(student).semester(secondSemester)
+                .totalCreditUnits(0).build();
+
+        assertDoesNotThrow(() -> service.autoAddCarryoverCourses(registration, student));
+
+        verify(systemConfigService, never())
+                .getIntValue(SystemConfigKeys.MAX_CREDIT_UNITS);
+        verify(registrationItemRepository, never()).save(any());
     }
 
     @Test

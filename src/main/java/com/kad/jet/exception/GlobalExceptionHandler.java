@@ -33,6 +33,21 @@ public class GlobalExceptionHandler {
     private static final Logger logger = LoggerFactory
             .getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(CarryoverCreditLimitException.class)
+    public ResponseEntity<ErrorResponse> carryoverCreditLimitHandler(
+            CarryoverCreditLimitException ex, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse(
+                        HttpStatus.CONFLICT.value(),
+                        request.getRequestURI(),
+                        ex.getMessage(),
+                        "compulsory carryover credit limit conflict",
+                        java.util.Map.of(
+                                "maximumCreditUnits", ex.getMaximumCreditUnits(),
+                                "totalCarryoverCreditUnits", ex.getTotalCarryoverCreditUnits(),
+                                "courses", ex.getCourses())));
+    }
+
     @org.springframework.web.bind.annotation
             .ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> inputValidationException(
