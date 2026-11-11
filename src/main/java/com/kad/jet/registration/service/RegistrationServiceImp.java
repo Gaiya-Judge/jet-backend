@@ -808,19 +808,19 @@ public class RegistrationServiceImp implements RegistrationService{
         StudentProfile studentProfile = getStudentProfile(
                 registration.getStudent().getId());
 
+        boolean carryover = isCarryoverEligible(registration.getStudent(), course,
+                registration.getSemester());
+
         // Run all course validations
-        // false = not a carryover so all checks apply
         validateCourseForRegistration(
                 course, studentProfile, registration,
-                registrationId, false);
+                registrationId, carryover);
 
         // Get tuition account before changes
         TuitionAccount account = getTuitionAccount(registrationId);
         BigDecimal previousTotalDue = account.getTotalDue();
 
         // Add the course to registration
-        boolean carryover = isCarryoverEligible(registration.getStudent(), course,
-                registration.getSemester());
         RegistrationItem item = RegistrationItem.builder()
                 .registration(registration)
                 .course(course)
@@ -923,7 +923,8 @@ public class RegistrationServiceImp implements RegistrationService{
                             "course not found in this registration"));
 
             // Carryover courses cannot be dropped
-            if (!item.getIsDroppable()) {
+            if (Boolean.TRUE.equals(item.getIsCarryOver())
+                    || !Boolean.TRUE.equals(item.getIsDroppable())) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
                         "carryover courses cannot be dropped");
