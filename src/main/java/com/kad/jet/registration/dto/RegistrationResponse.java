@@ -15,6 +15,8 @@ import java.util.UUID;
 public class RegistrationResponse {
 
     private UUID id;
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    private UUID tuitionAccountId;
     private UUID studentId;
     private String studentName;
     private String matricNumber;

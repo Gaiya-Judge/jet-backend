@@ -14,6 +14,8 @@ public interface TuitionAccountRepository extends JpaRepository<TuitionAccount, 
 
     Optional<TuitionAccount> findByRegistrationId(UUID registrationId);
 
+    List<TuitionAccount> findByRegistrationIdIn(Iterable<UUID> registrationIds);
+
     List<TuitionAccount> findByStudentId(UUID studentId);
 
     List<TuitionAccount> findByStudentIdAndSemesterId(

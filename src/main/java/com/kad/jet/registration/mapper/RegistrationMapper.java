@@ -6,13 +6,15 @@ import com.kad.jet.registration.model.Registration;
 import com.kad.jet.registration.model.RegistrationItem;
 
 import java.util.List;
+import java.util.UUID;
 
 public class RegistrationMapper {
 
-    public static RegistrationResponse toDto(Registration registration, String matricNumber, List<RegistrationItemResponse> courses) {
+    public static RegistrationResponse toDto(Registration registration, String matricNumber, List<RegistrationItemResponse> courses, UUID tuitionAccountId) {
 
         return RegistrationResponse.builder()
                 .id(registration.getId())
+                .tuitionAccountId(tuitionAccountId)
                 .studentId(registration.getStudent().getId())
                 .studentName(registration.getStudent().getFullName())
                 .matricNumber(matricNumber)

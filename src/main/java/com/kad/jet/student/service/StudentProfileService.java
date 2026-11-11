@@ -5,6 +5,8 @@ import com.kad.jet.student.dto.StudentProfileResponse;
 import com.kad.jet.user.model._User;
 
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface StudentProfileService {
 
@@ -12,4 +14,6 @@ public interface StudentProfileService {
 
 
     StudentProfileResponse getStudentProfileById(UUID studentId, _User currentUser);
+
+    Page<StudentProfileResponse> searchStudents(String search, Pageable pageable, _User currentUser);
 }

@@ -25,6 +25,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Service
 @RequiredArgsConstructor
@@ -119,5 +121,16 @@ public class StudentProfileServiceImp implements StudentProfileService {
                         "student profile not found"));
 
         return StudentProfileMapper.toDto(studentProfile);
+    }
+
+    @Override
+    public Page<StudentProfileResponse> searchStudents(String search, Pageable pageable, _User currentUser) {
+        if (!RoleChecker.hasAnyRole(currentUser, UserRole.IT_ADMIN, UserRole.SUPER_ADMIN)) {
+            throw new ResponseStatusException(currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN,
+                    "you are not allowed to perform this action");
+        }
+        String normalizedSearch = search == null || search.isBlank() ? null : search.trim();
+        return studentProfileRepository.searchDirectory(normalizedSearch, pageable)
+                .map(StudentProfileMapper::toDto);
     }
 }

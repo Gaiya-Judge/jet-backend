@@ -24,6 +24,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -127,5 +130,54 @@ class StudentProfileServiceImpTest {
 
         assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
         verifyNoInteractions(studentProfileRepository);
+    }
+
+    @Test
+    void adminCanSearchStudentDirectoryAndReceivesSafeDto() {
+        _User admin = _User.builder().id(UUID.randomUUID()).userRole(UserRole.IT_ADMIN).build();
+        UUID studentId = UUID.randomUUID();
+        Program program = Program.builder().id(UUID.randomUUID()).name("Theology").build();
+        Department department = Department.builder().id(UUID.randomUUID()).name("Biblical Studies").build();
+        _User student = _User.builder().id(studentId).email("person@example.test")
+                .fullName("Example Person").userRole(UserRole.STUDENT).password("secret-hash").build();
+        StudentProfile profile = StudentProfile.builder().id(studentId).user(student)
+                .matricNumber("221041").level(200).enrollmentYear(2022)
+                .program(program).department(department).build();
+        PageRequest pageable = PageRequest.of(0, 10);
+        when(studentProfileRepository.searchDirectory("221041", pageable))
+                .thenReturn(new PageImpl<>(java.util.List.of(profile), pageable, 1));
+
+        var result = service.searchStudents(" 221041 ", pageable, admin);
+
+        assertEquals(1, result.getTotalElements());
+        assertEquals("221041", result.getContent().getFirst().getMatricNumber());
+        assertEquals("Example Person", result.getContent().getFirst().getUserResponse().getFullName());
+        assertFalse(result.getContent().getFirst().toString().contains("secret-hash"));
+        verify(studentProfileRepository).searchDirectory("221041", pageable);
+    }
+
+    @Test
+    void directoryRejectsNonAdminRoles() {
+        for (UserRole role : UserRole.values()) {
+            if (role == UserRole.IT_ADMIN || role == UserRole.SUPER_ADMIN) continue;
+            _User user = _User.builder().userRole(role).build();
+            ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                    () -> service.searchStudents(null, PageRequest.of(0, 10), user));
+            assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
+        }
+        verifyNoInteractions(studentProfileRepository);
+    }
+
+    @Test
+    void blankDirectorySearchIsNormalizedToNoFilter() {
+        _User admin = _User.builder().userRole(UserRole.SUPER_ADMIN).build();
+        PageRequest pageable = PageRequest.of(1, 5);
+        when(studentProfileRepository.searchDirectory(null, pageable)).thenReturn(Page.empty(pageable));
+
+        var result = service.searchStudents("  ", pageable, admin);
+
+        assertEquals(1, result.getNumber());
+        assertEquals(5, result.getSize());
+        verify(studentProfileRepository).searchDirectory(null, pageable);
     }
 }

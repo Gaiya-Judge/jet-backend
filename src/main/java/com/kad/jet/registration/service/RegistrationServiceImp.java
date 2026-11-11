@@ -160,8 +160,9 @@ public class RegistrationServiceImp implements RegistrationService{
                     currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
-        return registrationRepository.findAll(pageable)
-                .map(this::buildResponse);
+        Page<Registration> registrations = registrationRepository.findAll(pageable);
+        Map<UUID, UUID> tuitionIds = tuitionAccountIds(registrations.getContent());
+        return registrations.map(registration -> buildResponse(registration, tuitionIds));
     }
 
     @Override
@@ -172,10 +173,10 @@ public class RegistrationServiceImp implements RegistrationService{
                     currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
-        return registrationRepository
-                .findByStatus(
-                        RegistrationStatus.PENDING_DEAN, pageable)
-                .map(this::buildResponse);
+        Page<Registration> registrations = registrationRepository
+                .findByStatus(RegistrationStatus.PENDING_DEAN, pageable);
+        Map<UUID, UUID> tuitionIds = tuitionAccountIds(registrations.getContent());
+        return registrations.map(registration -> buildResponse(registration, tuitionIds));
     }
 
     @Override
@@ -186,11 +187,9 @@ public class RegistrationServiceImp implements RegistrationService{
                     currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
-        return registrationRepository
-                .findByStudentId(currentUser.getId())
-                .stream()
-                .map(this::buildResponse)
-                .toList();
+        List<Registration> registrations = registrationRepository.findByStudentId(currentUser.getId());
+        Map<UUID, UUID> tuitionIds = tuitionAccountIds(registrations);
+        return registrations.stream().map(registration -> buildResponse(registration, tuitionIds)).toList();
     }
 
     @Override
@@ -1164,6 +1163,10 @@ public class RegistrationServiceImp implements RegistrationService{
 
     private RegistrationResponse buildResponse(
             Registration registration) {
+        return buildResponse(registration, tuitionAccountIds(List.of(registration)));
+    }
+
+    private RegistrationResponse buildResponse(Registration registration, Map<UUID, UUID> tuitionIds) {
 
         List<RegistrationItemResponse> courses =
                 registrationItemRepository
@@ -1178,7 +1181,16 @@ public class RegistrationServiceImp implements RegistrationService{
                 .orElse("N/A");
 
         return RegistrationMapper.toDto(
-                registration, matricNumber, courses);
+                registration, matricNumber, courses, tuitionIds.get(registration.getId()));
+    }
+
+    private Map<UUID, UUID> tuitionAccountIds(List<Registration> registrations) {
+        if (registrations.isEmpty()) return Map.of();
+        return tuitionRepository.findByRegistrationIdIn(
+                        registrations.stream().map(Registration::getId).toList())
+                .stream()
+                .collect(Collectors.toMap(account -> account.getRegistration().getId(),
+                        account -> account.getId()));
     }
 
     void validateCourseForRegistration(Course course, StudentProfile studentProfile, Registration registration,

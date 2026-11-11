@@ -10,6 +10,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.domain.Sort;
 
 import java.util.UUID;
 
@@ -19,6 +23,14 @@ import java.util.UUID;
 public class  StudentProfileController {
 
     private final StudentProfileService studentProfileService;
+
+    @GetMapping
+    public ResponseEntity<Page<StudentProfileResponse>> searchStudents(
+            @AuthenticationPrincipal _User currentUser,
+            @RequestParam(required = false) String search,
+            @PageableDefault(size = 10, sort = "matricNumber", direction = Sort.Direction.ASC) Pageable pageable) {
+        return ResponseEntity.ok(studentProfileService.searchStudents(search, pageable, currentUser));
+    }
 
     @PostMapping("/create-account")
     public ResponseEntity<?> createStudentAccount(@AuthenticationPrincipal _User currentUser, @RequestBody @Valid StudentAccountCreationRequest creationRequest){
