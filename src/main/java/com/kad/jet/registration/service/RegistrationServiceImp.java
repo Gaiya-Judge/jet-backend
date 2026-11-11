@@ -607,6 +607,11 @@ public class RegistrationServiceImp implements RegistrationService{
                             "current status: " + registration.getStatus());
         }
 
+        // Synchronize compulsory carryovers before processing requested courses,
+        // so request ordering cannot consume units needed by required courses.
+        Set<UUID> synchronizedCarryoverIds = autoAddCarryoverCourses(
+                registration, registration.getStudent());
+
         // Get student profile once — reused for all course checks
         StudentProfile studentProfile = getStudentProfile(
                 registration.getStudent().getId());
@@ -616,6 +621,7 @@ public class RegistrationServiceImp implements RegistrationService{
                 new ArrayList<>();
 
         int totalUnitsAddedThisCall = 0;
+        Set<UUID> reportedAddedIds = new HashSet<>();
 
         for (UUID courseId : request.getCourseIds()) {
 
@@ -638,28 +644,33 @@ public class RegistrationServiceImp implements RegistrationService{
                     continue;
                 }
 
-                // Semester type check
-                // Summer accepts courses only when they are outstanding carryovers.
-                validateSummerCourseEligibility(course, registration);
-                if (registration.getSemester().getSemesterType()
-                        != SemesterType.SUMMER) {
-                    if (course.getSemesterType() !=
-                            registration.getSemester()
-                                    .getSemesterType()) {
-                        failed.add(buildFailedCourse(courseId,
-                                course.getCourseCode(),
-                                "course " + course.getCourseCode() +
-                                        " belongs to " +
-                                        course.getSemesterType() +
-                                        " semester. current semester is " +
-                                        registration.getSemester()
-                                                .getSemesterType()));
-                        continue;
-                    }
+                // Classification uses the course's original semester and the
+                // student's outstanding grade history before ordinary-only checks.
+                boolean carryover = isCarryoverEligible(
+                        registration.getStudent(), course,
+                        registration.getSemester());
+
+                if (registration.getSemester().getSemesterType() == SemesterType.SUMMER
+                        && !carryover) {
+                    failed.add(buildFailedCourse(courseId,
+                            course.getCourseCode(),
+                            "SUMMER registration accepts carryover courses only"));
+                    continue;
+                }
+                if (registration.getSemester().getSemesterType() != SemesterType.SUMMER
+                        && course.getSemesterType()
+                        != registration.getSemester().getSemesterType()) {
+                    failed.add(buildFailedCourse(courseId,
+                            course.getCourseCode(),
+                            "course " + course.getCourseCode() +
+                                    " belongs to " + course.getSemesterType() +
+                                    " semester. current semester is " +
+                                    registration.getSemester().getSemesterType()));
+                    continue;
                 }
 
                 // Department restriction check
-                if (course.getIsDepartmentRestricted()) {
+                if (!carryover && course.getIsDepartmentRestricted()) {
                     UUID studentDeptId = studentProfile
                             .getDepartment().getId();
                     UUID courseDeptId = course
@@ -680,6 +691,11 @@ public class RegistrationServiceImp implements RegistrationService{
                 if (registrationItemRepository
                         .existsByRegistrationIdAndCourseId(
                                 registrationId, courseId)) {
+                    if (synchronizedCarryoverIds.contains(courseId)
+                            && reportedAddedIds.add(courseId)) {
+                        added.add(courseId);
+                        continue;
+                    }
                     failed.add(buildFailedCourse(courseId,
                             course.getCourseCode(),
                             "course already added " +
@@ -707,9 +723,6 @@ public class RegistrationServiceImp implements RegistrationService{
                 }
 
                 // All checks passed — add the course
-                boolean carryover = isCarryoverEligible(
-                        registration.getStudent(), course,
-                        registration.getSemester());
                 RegistrationItem item = RegistrationItem.builder()
                         .registration(registration)
                         .course(course)
@@ -719,6 +732,7 @@ public class RegistrationServiceImp implements RegistrationService{
 
                 registrationItemRepository.save(item);
                 added.add(courseId);
+                reportedAddedIds.add(courseId);
                 totalUnitsAddedThisCall += course.getCreditUnits();
 
             } catch (ResponseStatusException e) {
@@ -1084,7 +1098,21 @@ public class RegistrationServiceImp implements RegistrationService{
         }
     }
 
-    void autoAddCarryoverCourses(Registration registration, _User student) {
+    Set<UUID> autoAddCarryoverCourses(Registration registration, _User student) {
+
+        List<RegistrationItem> existingItems = registrationItemRepository
+                .findByRegistrationId(registration.getId());
+        Set<UUID> existingCourseIds = existingItems.stream()
+                .map(item -> item.getCourse().getId())
+                .collect(Collectors.toSet());
+        Map<UUID, RegistrationItem> existingItemsByCourse = existingItems.stream()
+                .collect(Collectors.toMap(item -> item.getCourse().getId(), item -> item,
+                        (first, duplicate) -> first));
+        Map<UUID, Course> compulsoryCarryovers = new LinkedHashMap<>();
+        existingItems.stream()
+                .filter(item -> Boolean.TRUE.equals(item.getIsCarryOver()))
+                .forEach(item -> compulsoryCarryovers.put(
+                        item.getCourse().getId(), item.getCourse()));
 
         List<StudentGrade> studentGrades = studentGradeRepository
                 .findByStudentId(student.getId());
@@ -1092,9 +1120,10 @@ public class RegistrationServiceImp implements RegistrationService{
                 .filter(g -> FAILING_GRADES.contains(g.getGrade()))
                 .toList();
 
-        if (failedGrades.isEmpty()) return;
+        if (failedGrades.isEmpty() && compulsoryCarryovers.isEmpty()) return Set.of();
 
-        List<Course> eligibleCarryovers = new ArrayList<>();
+        List<Course> missingCarryovers = new ArrayList<>();
+        List<RegistrationItem> carryoversToPromote = new ArrayList<>();
         Set<UUID> addedCourseIds = new HashSet<>();
 
         for (StudentGrade failedGrade : failedGrades) {
@@ -1107,22 +1136,30 @@ public class RegistrationServiceImp implements RegistrationService{
 
             if (!isOutstandingCarryover(studentGrades, courseId)) continue;
 
-            if (registrationItemRepository
-                    .existsByRegistrationIdAndCourseId(
-                            registration.getId(), courseId)) continue;
-
-            eligibleCarryovers.add(failedGrade.getCourse());
+            Course course = failedGrade.getCourse();
+            compulsoryCarryovers.putIfAbsent(courseId, course);
+            RegistrationItem existingItem = existingItemsByCourse.get(courseId);
+            if (existingItem != null
+                    && !Boolean.TRUE.equals(existingItem.getIsCarryOver())) {
+                carryoversToPromote.add(existingItem);
+            }
+            boolean alreadyRegistered = existingCourseIds.contains(courseId)
+                    || registrationItemRepository.existsByRegistrationIdAndCourseId(
+                    registration.getId(), courseId);
+            if (!alreadyRegistered) {
+                missingCarryovers.add(course);
+            }
         }
 
-        if (eligibleCarryovers.isEmpty()) return;
+        if (compulsoryCarryovers.isEmpty()) return Set.of();
 
-        int totalCarryoverUnits = eligibleCarryovers.stream()
+        int totalCarryoverUnits = compulsoryCarryovers.values().stream()
                 .mapToInt(Course::getCreditUnits)
                 .sum();
         int maximumCreditUnits = getMaxCreditUnits();
         if (totalCarryoverUnits > maximumCreditUnits) {
             List<CarryoverCreditLimitException.CourseDetail> details =
-                    eligibleCarryovers.stream()
+                    compulsoryCarryovers.values().stream()
                             .map(course -> new CarryoverCreditLimitException.CourseDetail(
                                     course.getId(), course.getCourseCode(),
                                     course.getTitle(), course.getCreditUnits()))
@@ -1131,7 +1168,14 @@ public class RegistrationServiceImp implements RegistrationService{
                     totalCarryoverUnits, details);
         }
 
-        for (Course course : eligibleCarryovers) {
+        Set<UUID> newlySynchronizedIds = new LinkedHashSet<>();
+        for (RegistrationItem item : carryoversToPromote) {
+            item.setIsCarryOver(true);
+            item.setIsDroppable(false);
+            registrationItemRepository.save(item);
+            newlySynchronizedIds.add(item.getCourse().getId());
+        }
+        for (Course course : missingCarryovers) {
             RegistrationItem item = RegistrationItem.builder()
                     .registration(registration)
                     .course(course)
@@ -1139,12 +1183,18 @@ public class RegistrationServiceImp implements RegistrationService{
                     .isDroppable(false)
                     .build();
             registrationItemRepository.save(item);
+            newlySynchronizedIds.add(course.getId());
         }
 
-        registration.setTotalCreditUnits(
-                registration.getTotalCreditUnits()
-                        + totalCarryoverUnits);
-        registrationRepository.save(registration);
+        int newlyAddedUnits = missingCarryovers.stream()
+                .mapToInt(Course::getCreditUnits)
+                .sum();
+        if (newlyAddedUnits > 0) {
+            registration.setTotalCreditUnits(
+                    registration.getTotalCreditUnits() + newlyAddedUnits);
+            registrationRepository.save(registration);
+        }
+        return newlySynchronizedIds;
     }
 
     private RegistrationItemResponse toItemResponse(

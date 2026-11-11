@@ -260,6 +260,8 @@ class RegistrationCarryoverTest {
                 .thenReturn(List.of(grade(firstSemesterCourse, "F")));
         when(registrationItemRepository.existsByRegistrationIdAndCourseId(
                 any(), any())).thenReturn(true);
+        when(systemConfigService.getIntValue(SystemConfigKeys.MAX_CREDIT_UNITS))
+                .thenReturn(30);
         Registration registration = Registration.builder()
                 .id(UUID.randomUUID()).student(student).semester(firstSemester)
                 .totalCreditUnits(0).build();

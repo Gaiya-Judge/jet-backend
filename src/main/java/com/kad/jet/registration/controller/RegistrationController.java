@@ -79,7 +79,7 @@ public class RegistrationController {
     @PostMapping("/{id}/bulk")
     public ResponseEntity<?> addBulkCourses(@AuthenticationPrincipal _User currentUser,
                                             @PathVariable(name = "id") UUID registrationId,
-                                            @RequestBody BulkAddCourseRequest request){
+                                            @Valid @RequestBody BulkAddCourseRequest request){
         BulkAddCourseResponse response = registrationService.addCourses(currentUser, registrationId, request);
 
         return ResponseEntity.ok(response);
