@@ -283,6 +283,59 @@ class RegistrationBulkCarryoverTest {
         assertTrue(savedItems.getFirst().getIsCarryOver());
     }
 
+    static Stream<SemesterType> summerCarryoverSemesters() {
+        return Stream.of(SemesterType.FIRST, SemesterType.SECOND);
+    }
+
+    @ParameterizedTest
+    @MethodSource("summerCarryoverSemesters")
+    void summerAutomaticallySynchronizesLevelEligibleCarryoversAsCompulsory(
+            SemesterType courseSemester) {
+        registration.setSemester(semester(SemesterType.SUMMER));
+        Course carryover = course(courseSemester, 3, "SUM" + courseSemester);
+        when(studentGradeRepository.findByStudentId(student.getId()))
+                .thenReturn(List.of(grade(carryover, "F")));
+
+        service.autoAddCarryoverCourses(registration, student);
+
+        assertEquals(1, savedItems.size());
+        assertEquals(carryover.getId(), savedItems.getFirst().getCourse().getId());
+        assertTrue(savedItems.getFirst().getIsCarryOver());
+        assertFalse(savedItems.getFirst().getIsDroppable());
+    }
+
+    @Test
+    void automaticallyDoesNotSynchronizeCarryoverAtIncompatibleLevel() {
+        Course carryover = course(SemesterType.FIRST, 3, "CAR101");
+        carryover.setLevel(200);
+        when(studentGradeRepository.findByStudentId(student.getId()))
+                .thenReturn(List.of(grade(carryover, "F")));
+
+        service.autoAddCarryoverCourses(registration, student);
+
+        assertTrue(savedItems.isEmpty());
+        assertEquals(0, registration.getTotalCreditUnits());
+        verify(systemConfigService, never())
+                .getIntValue(SystemConfigKeys.MAX_CREDIT_UNITS);
+    }
+
+    @Test
+    void automaticSummerCarryoverRetainsDepartmentRestrictionExemption() {
+        registration.setSemester(semester(SemesterType.SUMMER));
+        Course carryover = course(SemesterType.FIRST, 3, "CAR101");
+        carryover.setIsDepartmentRestricted(true);
+        carryover.setDepartment(Department.builder().id(UUID.randomUUID())
+                .name("Other Dept").build());
+        when(studentGradeRepository.findByStudentId(student.getId()))
+                .thenReturn(List.of(grade(carryover, "F")));
+
+        service.autoAddCarryoverCourses(registration, student);
+
+        assertEquals(1, savedItems.size());
+        assertTrue(savedItems.getFirst().getIsCarryOver());
+        assertFalse(savedItems.getFirst().getIsDroppable());
+    }
+
     @Test
     void invalidOrdinaryCourseDoesNotPreventAnotherValidCourse() {
         Course restricted = course(SemesterType.FIRST, 3, "BAD101");

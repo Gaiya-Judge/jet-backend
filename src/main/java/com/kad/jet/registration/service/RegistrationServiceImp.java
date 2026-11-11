@@ -1127,6 +1127,8 @@ public class RegistrationServiceImp implements RegistrationService{
         List<RegistrationItem> carryoversToPromote = new ArrayList<>();
         Set<UUID> addedCourseIds = new HashSet<>();
 
+        StudentProfile studentProfile = getStudentProfile(student.getId());
+
         for (StudentGrade failedGrade : failedGrades) {
             UUID courseId = failedGrade.getCourse().getId();
 
@@ -1138,6 +1140,8 @@ public class RegistrationServiceImp implements RegistrationService{
             if (!isOutstandingCarryover(studentGrades, courseId)) continue;
 
             Course course = failedGrade.getCourse();
+            if (!course.getLevel().equals(studentProfile.getLevel())) continue;
+
             compulsoryCarryovers.putIfAbsent(courseId, course);
             RegistrationItem existingItem = existingItemsByCourse.get(courseId);
             if (existingItem != null
