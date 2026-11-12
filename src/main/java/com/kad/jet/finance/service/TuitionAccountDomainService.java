@@ -8,6 +8,8 @@ import com.kad.jet.finance.repository.TuitionAccountRepository;
 import com.kad.jet.registration.model.Registration;
 import com.kad.jet.registration.model.RegistrationStatus;
 import com.kad.jet.registration.repository.RegistrationRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +26,7 @@ public class TuitionAccountDomainService {
     private final TuitionAccountRepository tuitionAccountRepository;
     private final RegistrationRepository registrationRepository;
     private final PaymentRepository paymentRepository;
+    private final EntityManager entityManager;
 
     @Transactional
     public void updateTuitionAccountAndProcessRegistration(UUID paymentId) {
@@ -38,11 +41,15 @@ public class TuitionAccountDomainService {
         }
 
         TuitionAccount account = payment.getTuitionAccount();
+        TuitionAccount lockedAccount = tuitionAccountRepository
+                .findByRegistrationIdWithLock(account.getRegistration().getId())
+                .orElseThrow(() -> new RuntimeException("Tuition account not found"));
+        entityManager.refresh(lockedAccount, LockModeType.PESSIMISTIC_WRITE);
 
-        if (account.getTuitionAccountStatus() == TuitionAccountStatus.PAID) {
+        if (lockedAccount.getTuitionAccountStatus() == TuitionAccountStatus.PAID) {
             log.warn("Webhook arrived for already PAID account {}. " +
                             "Reference: {}. No changes made.",
-                    account.getId(),
+                    lockedAccount.getId(),
                     payment.getPaystackReference());
 
             payment.setAppliedToAccount(true);
@@ -51,28 +58,28 @@ public class TuitionAccountDomainService {
         }
 
         // totalPaid always reflects actual cash received
-        BigDecimal newTotalPaid = account.getTotalPaid()
+        BigDecimal newTotalPaid = lockedAccount.getTotalPaid()
                 .add(payment.getAmount());
 
-        account.setTotalPaid(newTotalPaid);
+        lockedAccount.setTotalPaid(newTotalPaid);
 
         // Balance derived — floors at zero
-        BigDecimal newBalance = account.getTotalDue()
+        BigDecimal newBalance = lockedAccount.getTotalDue()
                 .subtract(newTotalPaid);
 
         if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
             newBalance = BigDecimal.ZERO;
         }
 
-        account.setBalance(newBalance);
+        lockedAccount.setBalance(newBalance);
 
         // Determine status
         if (newBalance.compareTo(BigDecimal.ZERO) == 0) {
             // Fully paid
-            account.setTuitionAccountStatus(TuitionAccountStatus.PAID);
+            lockedAccount.setTuitionAccountStatus(TuitionAccountStatus.PAID);
 
         } else if (newTotalPaid.compareTo(
-                account.getMinimumPayment()) >= 0) {
+                lockedAccount.getMinimumPayment()) >= 0) {
 
             // Met the minimum payment threshold
             // This reads account.getMinimumPayment() directly
@@ -80,17 +87,17 @@ public class TuitionAccountDomainService {
             // No need to recalculate from system config here
             // If waiver reduced minimumPayment to 40%
             // this check respects that automatically
-            account.setTuitionAccountStatus(TuitionAccountStatus.PARTIAL);
+            lockedAccount.setTuitionAccountStatus(TuitionAccountStatus.PARTIAL);
         }
 
-        tuitionAccountRepository.save(account);
+        tuitionAccountRepository.save(lockedAccount);
 
-        if (account.getTuitionAccountStatus() == TuitionAccountStatus.PAID ||
-                account.getTuitionAccountStatus() ==
+        if (lockedAccount.getTuitionAccountStatus() == TuitionAccountStatus.PAID ||
+                lockedAccount.getTuitionAccountStatus() ==
                         TuitionAccountStatus.PARTIAL) {
 
-            Registration registration = account.getRegistration();
-            if (registration.getStatus() != RegistrationStatus.COMPLETED) {
+            Registration registration = lockedAccount.getRegistration();
+            if (registration.getStatus() == RegistrationStatus.APPROVED) {
                 registration.setStatus(RegistrationStatus.COMPLETED);
                 registrationRepository.save(registration);
             }

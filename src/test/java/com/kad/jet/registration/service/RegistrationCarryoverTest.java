@@ -17,6 +17,7 @@ import com.kad.jet.semester.model.Semester;
 import com.kad.jet.semester.model.SemesterType;
 import com.kad.jet.semester.repository.SemesterRepository;
 import com.kad.jet.student.model.StudentGrade;
+import com.kad.jet.student.model.StudentProfile;
 import com.kad.jet.student.repository.StudentGradeRepository;
 import com.kad.jet.student.repository.StudentProfileRepository;
 import com.kad.jet.course.repository.CourseRepository;
@@ -60,6 +61,7 @@ class RegistrationCarryoverTest {
     @InjectMocks RegistrationServiceImp service;
 
     private _User student;
+    private StudentProfile profile;
     private Course firstSemesterCourse;
     private Course secondSemesterCourse;
     private Semester firstSemester;
@@ -69,6 +71,9 @@ class RegistrationCarryoverTest {
     @BeforeEach
     void setUp() {
         student = _User.builder().id(UUID.randomUUID()).build();
+        profile = StudentProfile.builder().id(student.getId()).level(100).build();
+        lenient().when(studentProfileRepository.findById(student.getId()))
+                .thenReturn(Optional.of(profile));
         firstSemesterCourse = course(SemesterType.FIRST);
         secondSemesterCourse = course(SemesterType.SECOND);
         firstSemester = semester(SemesterType.FIRST);

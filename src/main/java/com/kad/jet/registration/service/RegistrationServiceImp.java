@@ -896,6 +896,13 @@ public class RegistrationServiceImp implements RegistrationService{
                         "assist reason is required");
             }
 
+            TuitionAccount account = tuitionRepository
+                    .findByRegistrationIdWithLock(registrationId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "tuition account not found for this registration"));
+            BigDecimal previousTotalDue = account.getTotalDue();
+
             Registration registration = findById(registrationId);
 
             ensureStudentOwnsRegistration(currentUser, registration);
@@ -945,10 +952,6 @@ public class RegistrationServiceImp implements RegistrationService{
                                 " which is below the minimum of " + minUnits);
             }
 
-            // Get tuition account before changes
-            TuitionAccount account = getTuitionAccount(registrationId);
-            BigDecimal previousTotalDue = account.getTotalDue();
-
             String courseCode = item.getCourse().getCourseCode();
             int droppedUnits = item.getCourse().getCreditUnits();
 
@@ -975,9 +978,6 @@ public class RegistrationServiceImp implements RegistrationService{
 
             recalculateTuitionForAddDrop(
                     account, registration, studentProfile);
-
-        //refresh to avoid stale balance
-        account = getTuitionAccount(registrationId);
 
         BigDecimal newTotalDue = account.getTotalDue();
 

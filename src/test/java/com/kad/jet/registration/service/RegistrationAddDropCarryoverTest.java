@@ -180,6 +180,62 @@ class RegistrationAddDropCarryoverTest {
         assertEquals(3, item.getRegistration().getTotalCreditUnits());
     }
 
+    @Test
+    void dropCourseDuringAddDropLocksTuitionAccountBeforeUpdatingFinancialState() {
+        RegistrationItem item = item(false, true);
+        prepareDrop(item);
+        when(tuitionRepository.findByRegistrationIdWithLock(item.getRegistration().getId()))
+                .thenReturn(Optional.of(account(item.getRegistration())));
+
+        assertDoesNotThrow(() -> service.dropCourseDuringAddDrop(
+                student, item.getRegistration().getId(), item.getCourse().getId(), null));
+
+        var invocationOrder = inOrder(tuitionRepository, registrationRepository, registrationItemRepository);
+        invocationOrder.verify(tuitionRepository)
+                .findByRegistrationIdWithLock(item.getRegistration().getId());
+        invocationOrder.verify(registrationRepository).findById(item.getRegistration().getId());
+        invocationOrder.verify(registrationItemRepository)
+                .findByRegistrationIdAndCourseId(item.getRegistration().getId(), item.getCourse().getId());
+    }
+
+    @Test
+    void dropUsesRegistrationCreditUnitsLoadedAfterAccountLock() {
+        RegistrationItem item = item(false, true);
+        prepareDrop(item);
+        TuitionAccount tuitionAccount = account(item.getRegistration());
+        when(tuitionRepository.findByRegistrationIdWithLock(item.getRegistration().getId()))
+                .thenAnswer(invocation -> {
+                    item.getRegistration().setTotalCreditUnits(9);
+                    return Optional.of(tuitionAccount);
+                });
+
+        service.dropCourseDuringAddDrop(
+                student, item.getRegistration().getId(), item.getCourse().getId(), null);
+
+        assertEquals(6, item.getRegistration().getTotalCreditUnits());
+        assertEquals(new BigDecimal("60"), tuitionAccount.getTuitionAmount());
+        verify(registrationRepository).save(argThat(registration ->
+                registration.getTotalCreditUnits() == 6));
+    }
+
+    @Test
+    void courseMissingAfterAccountLockRetainsNotFoundRejection() {
+        RegistrationItem item = item(false, true);
+        prepareDrop(item);
+        when(registrationItemRepository.findByRegistrationIdAndCourseId(
+                item.getRegistration().getId(), item.getCourse().getId()))
+                .thenReturn(Optional.empty());
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.dropCourseDuringAddDrop(student, item.getRegistration().getId(),
+                        item.getCourse().getId(), null));
+
+        assertEquals(HttpStatus.NOT_FOUND, error.getStatusCode());
+        assertEquals("course not found in this registration", error.getReason());
+        verify(registrationItemRepository, never()).delete(any());
+        verify(registrationRepository, never()).save(any());
+    }
+
     private void assertRejectedDrop(RegistrationItem item) {
         prepareDrop(item);
         int unitsBefore = item.getRegistration().getTotalCreditUnits();
@@ -200,6 +256,7 @@ class RegistrationAddDropCarryoverTest {
         lenient().when(studentGradeRepository.findByStudentId(student.getId())).thenReturn(grades);
         TuitionAccount tuitionAccount = account(registration);
         lenient().when(tuitionRepository.findByRegistrationId(registration.getId())).thenReturn(Optional.of(tuitionAccount));
+        lenient().when(tuitionRepository.findByRegistrationIdWithLock(registration.getId())).thenReturn(Optional.of(tuitionAccount));
         lenient().when(tuitionRepository.findByRegistrationIdIn(any())).thenReturn(List.of(tuitionAccount));
         lenient().when(feeStructureRepository.findBySemesterIdAndProgramId(any(), any()))
                 .thenReturn(Optional.of(FeeStructure.builder().costPerCreditUnit(BigDecimal.TEN).build()));
@@ -213,6 +270,7 @@ class RegistrationAddDropCarryoverTest {
         lenient().when(systemConfigService.getIntValue(any())).thenReturn(0);
         TuitionAccount tuitionAccount = account(registration);
         lenient().when(tuitionRepository.findByRegistrationId(registration.getId())).thenReturn(Optional.of(tuitionAccount));
+        lenient().when(tuitionRepository.findByRegistrationIdWithLock(registration.getId())).thenReturn(Optional.of(tuitionAccount));
         lenient().when(tuitionRepository.findByRegistrationIdIn(any())).thenReturn(List.of(tuitionAccount));
         lenient().when(feeStructureRepository.findBySemesterIdAndProgramId(any(), any()))
                 .thenReturn(Optional.of(FeeStructure.builder().costPerCreditUnit(BigDecimal.TEN).build()));
