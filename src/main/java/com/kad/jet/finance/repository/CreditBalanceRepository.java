@@ -10,4 +10,6 @@ import java.util.UUID;
 @Repository
 public interface CreditBalanceRepository extends JpaRepository<CreditBalance, UUID> {
     List<CreditBalance> findByStudentIdAndIsAppliedFalse(UUID id);
+
+    List<CreditBalance> findByStudentIdAndSourceSemesterId(UUID studentId, UUID sourceSemesterId);
 }

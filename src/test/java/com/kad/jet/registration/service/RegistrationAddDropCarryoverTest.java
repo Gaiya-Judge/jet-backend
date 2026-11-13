@@ -4,7 +4,9 @@ import com.kad.jet.config.service.SystemConfigService;
 import com.kad.jet.course.model.Course;
 import com.kad.jet.course.model.CourseType;
 import com.kad.jet.course.repository.CourseRepository;
+import com.kad.jet.config.SystemConfigKeys;
 import com.kad.jet.department.model.Department;
+import com.kad.jet.finance.model.CreditBalance;
 import com.kad.jet.finance.model.FeeStructure;
 import com.kad.jet.finance.model.TuitionAccount;
 import com.kad.jet.finance.model.TuitionAccountStatus;
@@ -219,6 +221,23 @@ class RegistrationAddDropCarryoverTest {
     }
 
     @Test
+    void addCourseDuringAddDropLocksTuitionBeforeReadingRegistration() {
+        RegistrationItem item = item(false, true);
+        TuitionAccount tuitionAccount = prepareFinancialFlow(item,
+                new java.util.ArrayList<>(), new BigDecimal("60"), new BigDecimal("30"));
+
+        service.addCourseDuringAddDrop(student, item.getRegistration().getId(),
+                addRequest(item.getCourse()));
+
+        var invocationOrder = inOrder(tuitionRepository, registrationRepository);
+        invocationOrder.verify(tuitionRepository)
+                .findByRegistrationIdWithLock(item.getRegistration().getId());
+        invocationOrder.verify(registrationRepository).findById(item.getRegistration().getId());
+        assertSame(tuitionAccount, tuitionRepository
+                .findByRegistrationIdWithLock(item.getRegistration().getId()).orElseThrow());
+    }
+
+    @Test
     void courseMissingAfterAccountLockRetainsNotFoundRejection() {
         RegistrationItem item = item(false, true);
         prepareDrop(item);
@@ -234,6 +253,140 @@ class RegistrationAddDropCarryoverTest {
         assertEquals("course not found in this registration", error.getReason());
         verify(registrationItemRepository, never()).delete(any());
         verify(registrationRepository, never()).save(any());
+    }
+
+    @Test
+    void droppingCourseCreatesCreditFromActualOverpayment() {
+        RegistrationItem item = item(false, true);
+        List<CreditBalance> credits = new java.util.ArrayList<>();
+        TuitionAccount account = prepareFinancialFlow(item, credits,
+                new BigDecimal("60"), new BigDecimal("60"));
+
+        service.dropCourseDuringAddDrop(student, item.getRegistration().getId(),
+                item.getCourse().getId(), null);
+
+        assertEquals(new BigDecimal("30"), account.getTotalDue());
+        assertEquals(new BigDecimal("60"), account.getTotalPaid());
+        assertEquals(1, credits.size());
+        assertEquals(new BigDecimal("30"), credits.get(0).getAmount());
+        assertFalse(credits.get(0).getIsApplied());
+        assertSame(item.getRegistration().getSemester(), credits.get(0).getSourceSemester());
+    }
+
+    @Test
+    void readdingDroppedCourseReconcilesGeneratedCredit() {
+        RegistrationItem item = item(false, true);
+        List<CreditBalance> credits = new java.util.ArrayList<>();
+        TuitionAccount account = prepareFinancialFlow(item, credits,
+                new BigDecimal("60"), new BigDecimal("60"));
+
+        service.dropCourseDuringAddDrop(student, item.getRegistration().getId(),
+                item.getCourse().getId(), null);
+        service.addCourseDuringAddDrop(student, item.getRegistration().getId(),
+                addRequest(item.getCourse()));
+
+        assertEquals(new BigDecimal("60"), account.getTotalDue());
+        assertEquals(new BigDecimal("60"), account.getTotalPaid());
+        assertEquals(BigDecimal.ZERO, account.getBalance());
+        assertEquals(1, credits.size());
+        assertEquals(BigDecimal.ZERO, credits.get(0).getAmount());
+    }
+
+    @Test
+    void readdingCoursePreservesOnlyGenuineExcessAsCredit() {
+        RegistrationItem item = item(false, true);
+        List<CreditBalance> credits = new java.util.ArrayList<>();
+        TuitionAccount account = prepareFinancialFlow(item, credits,
+                new BigDecimal("90"), new BigDecimal("60"));
+
+        service.dropCourseDuringAddDrop(student, item.getRegistration().getId(),
+                item.getCourse().getId(), null);
+        service.addCourseDuringAddDrop(student, item.getRegistration().getId(),
+                addRequest(item.getCourse()));
+
+        assertEquals(new BigDecimal("60"), account.getTotalDue());
+        assertEquals(new BigDecimal("90"), account.getTotalPaid());
+        assertEquals(new BigDecimal("30"), availableCredit(credits));
+    }
+
+    @Test
+    void readdingCourseDoesNotChangePreviousSemesterCredit() {
+        Registration registration = registration(SemesterType.FIRST, 3);
+        RegistrationItem item = RegistrationItem.builder().registration(registration)
+                .course(course(SemesterType.FIRST)).isCarryOver(false).isDroppable(true).build();
+        List<CreditBalance> currentSemesterCredits = new java.util.ArrayList<>();
+        CreditBalance currentCredit = credit(item.getRegistration().getSemester(),
+                new BigDecimal("10"), false);
+        currentSemesterCredits.add(currentCredit);
+        Semester previousSemester = Semester.builder().id(UUID.randomUUID())
+                .semesterType(SemesterType.SECOND).build();
+        CreditBalance previousCredit = credit(previousSemester, new BigDecimal("7"), false);
+        TuitionAccount account = prepareFinancialFlow(item, currentSemesterCredits,
+                new BigDecimal("60"), new BigDecimal("30"));
+
+        service.addCourseDuringAddDrop(student, item.getRegistration().getId(),
+                addRequest(item.getCourse()));
+
+        assertEquals(BigDecimal.ZERO, currentCredit.getAmount());
+        assertEquals(new BigDecimal("7"), previousCredit.getAmount());
+        assertFalse(previousCredit.getIsApplied());
+        assertEquals(new BigDecimal("60"), account.getTotalDue());
+        verify(creditBalanceRepository).findByStudentIdAndSourceSemesterId(
+                student.getId(), registration.getSemester().getId());
+    }
+
+    @Test
+    void readdingCourseDoesNotModifyCreditAlreadyAppliedElsewhere() {
+        Registration registration = registration(SemesterType.FIRST, 3);
+        RegistrationItem item = RegistrationItem.builder().registration(registration)
+                .course(course(SemesterType.FIRST)).isCarryOver(false).isDroppable(true).build();
+        CreditBalance appliedCredit = credit(registration.getSemester(),
+                new BigDecimal("15"), true);
+        TuitionAccount account = prepareFinancialFlow(item,
+                new java.util.ArrayList<>(List.of(appliedCredit)),
+                new BigDecimal("60"), new BigDecimal("30"));
+
+        service.addCourseDuringAddDrop(student, registration.getId(), addRequest(item.getCourse()));
+
+        assertEquals(new BigDecimal("15"), appliedCredit.getAmount());
+        assertTrue(appliedCredit.getIsApplied());
+        assertEquals(new BigDecimal("60"), account.getTotalPaid());
+    }
+
+    @Test
+    void repeatedDropAddCycleDoesNotDuplicateAvailableCredit() {
+        RegistrationItem item = item(false, true);
+        List<CreditBalance> credits = new java.util.ArrayList<>();
+        TuitionAccount account = prepareFinancialFlow(item, credits,
+                new BigDecimal("60"), new BigDecimal("60"));
+
+        service.dropCourseDuringAddDrop(student, item.getRegistration().getId(),
+                item.getCourse().getId(), null);
+        service.addCourseDuringAddDrop(student, item.getRegistration().getId(),
+                addRequest(item.getCourse()));
+        service.dropCourseDuringAddDrop(student, item.getRegistration().getId(),
+                item.getCourse().getId(), null);
+
+        assertEquals(new BigDecimal("30"), account.getTotalDue());
+        assertEquals(new BigDecimal("60"), account.getTotalPaid());
+        assertEquals(new BigDecimal("30"), availableCredit(credits));
+        assertTrue(credits.stream().allMatch(credit -> !Boolean.TRUE.equals(credit.getIsApplied())));
+    }
+
+    @Test
+    void creditReconciliationLeavesActualPaymentTotalUnchanged() {
+        RegistrationItem item = item(false, true);
+        List<CreditBalance> credits = new java.util.ArrayList<>();
+        TuitionAccount account = prepareFinancialFlow(item, credits,
+                new BigDecimal("60"), new BigDecimal("60"));
+
+        service.dropCourseDuringAddDrop(student, item.getRegistration().getId(),
+                item.getCourse().getId(), null);
+        service.addCourseDuringAddDrop(student, item.getRegistration().getId(),
+                addRequest(item.getCourse()));
+
+        assertEquals(new BigDecimal("60"), account.getTotalPaid());
+        assertEquals(BigDecimal.ZERO, availableCredit(credits));
     }
 
     private void assertRejectedDrop(RegistrationItem item) {
@@ -274,6 +427,68 @@ class RegistrationAddDropCarryoverTest {
         lenient().when(tuitionRepository.findByRegistrationIdIn(any())).thenReturn(List.of(tuitionAccount));
         lenient().when(feeStructureRepository.findBySemesterIdAndProgramId(any(), any()))
                 .thenReturn(Optional.of(FeeStructure.builder().costPerCreditUnit(BigDecimal.TEN).build()));
+    }
+
+    private TuitionAccount prepareFinancialFlow(RegistrationItem item,
+                                               List<CreditBalance> currentSemesterCredits,
+                                               BigDecimal totalPaid,
+                                               BigDecimal initialTotalDue) {
+        Registration registration = item.getRegistration();
+        Course course = item.getCourse();
+        TuitionAccount tuitionAccount = account(registration);
+        tuitionAccount.setTotalDue(initialTotalDue);
+        tuitionAccount.setTuitionAmount(initialTotalDue);
+        tuitionAccount.setTotalPaid(totalPaid);
+        tuitionAccount.setBalance(initialTotalDue.subtract(totalPaid).max(BigDecimal.ZERO));
+
+        lenient().when(registrationRepository.findById(registration.getId()))
+                .thenReturn(Optional.of(registration));
+        lenient().when(registrationItemRepository.findByRegistrationIdAndCourseId(
+                        registration.getId(), course.getId()))
+                .thenReturn(Optional.of(item), Optional.of(item));
+        lenient().when(courseRepository.findById(course.getId()))
+                .thenReturn(Optional.of(course));
+        lenient().when(studentGradeRepository.findByStudentId(student.getId()))
+                .thenReturn(List.of());
+        lenient().when(tuitionRepository.findByRegistrationId(registration.getId()))
+                .thenReturn(Optional.of(tuitionAccount));
+        lenient().when(tuitionRepository.findByRegistrationIdWithLock(registration.getId()))
+                .thenReturn(Optional.of(tuitionAccount));
+        lenient().when(tuitionRepository.findByRegistrationIdIn(any()))
+                .thenReturn(List.of(tuitionAccount));
+        lenient().when(feeStructureRepository.findBySemesterIdAndProgramId(any(), any()))
+                .thenReturn(Optional.of(FeeStructure.builder()
+                        .costPerCreditUnit(BigDecimal.TEN).build()));
+        lenient().when(creditBalanceRepository.findByStudentIdAndSourceSemesterId(
+                        student.getId(), registration.getSemester().getId()))
+                .thenReturn(currentSemesterCredits);
+        lenient().when(creditBalanceRepository.save(any(CreditBalance.class)))
+                .thenAnswer(invocation -> {
+                    CreditBalance credit = invocation.getArgument(0);
+                    if (!currentSemesterCredits.contains(credit)) {
+                        currentSemesterCredits.add(credit);
+                    }
+                    return credit;
+                });
+        lenient().when(systemConfigService.getIntValue(SystemConfigKeys.MIN_CREDIT_UNITS))
+                .thenReturn(0);
+        lenient().when(systemConfigService.getIntValue(SystemConfigKeys.MAX_CREDIT_UNITS))
+                .thenReturn(30);
+        lenient().when(systemConfigService.getIntValue(SystemConfigKeys.MIN_PAYMENT_PERCENTAGE))
+                .thenReturn(0);
+        return tuitionAccount;
+    }
+
+    private CreditBalance credit(Semester sourceSemester, BigDecimal amount, boolean applied) {
+        return CreditBalance.builder().id(UUID.randomUUID()).student(student)
+                .sourceSemester(sourceSemester).amount(amount).isApplied(applied).build();
+    }
+
+    private BigDecimal availableCredit(List<CreditBalance> credits) {
+        return credits.stream()
+                .filter(credit -> !Boolean.TRUE.equals(credit.getIsApplied()))
+                .map(CreditBalance::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private RegistrationItem capturedItem() {

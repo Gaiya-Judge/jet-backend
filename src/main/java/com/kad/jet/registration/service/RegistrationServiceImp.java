@@ -781,6 +781,13 @@ public class RegistrationServiceImp implements RegistrationService{
                     "assist reason is required");
         }
 
+        TuitionAccount account = tuitionRepository
+                .findByRegistrationIdWithLock(registrationId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "tuition account not found for this registration"));
+        BigDecimal previousTotalDue = account.getTotalDue();
+
         Registration registration = findById(registrationId);
 
         ensureStudentOwnsRegistration(currentUser, registration);
@@ -816,10 +823,6 @@ public class RegistrationServiceImp implements RegistrationService{
                 course, studentProfile, registration,
                 registrationId, carryover);
 
-        // Get tuition account before changes
-        TuitionAccount account = getTuitionAccount(registrationId);
-        BigDecimal previousTotalDue = account.getTotalDue();
-
         // Add the course to registration
         RegistrationItem item = RegistrationItem.builder()
                 .registration(registration)
@@ -849,6 +852,8 @@ public class RegistrationServiceImp implements RegistrationService{
         // Recalculate tuition — adding units increases the bill
         BigDecimal additionalTuition = recalculateTuitionForAddDrop(
                 account, registration, studentProfile);
+
+        reconcileCurrentSemesterCredit(registration, account);
 
         BigDecimal newTotalDue = account.getTotalDue();
         BigDecimal difference = newTotalDue.subtract(previousTotalDue);
@@ -985,25 +990,12 @@ public class RegistrationServiceImp implements RegistrationService{
         // Credit is based on what student actually PAID
         // vs what they now OWE after the drop
         // Not just the difference in totalDue
-        BigDecimal creditToGenerate = BigDecimal.ZERO;
-
         BigDecimal refundAmount = previousTotalDue
                 .subtract(newTotalDue);
 
-        if (account.getTotalPaid().compareTo(newTotalDue) > 0) {
-            // Student paid more than they now owe
-            // The excess becomes a credit for next semester
-            creditToGenerate = account.getTotalPaid()
-                    .subtract(newTotalDue);
-        }
+        BigDecimal creditToGenerate = reconcileCurrentSemesterCredit(registration, account);
 
-        // Create credit balance only if student actually overpaid
         if (creditToGenerate.compareTo(BigDecimal.ZERO) > 0) {
-            createCreditBalance(
-                    registration.getStudent(),
-                    registration.getSemester(),
-                    creditToGenerate);
-
             log.info("Credit balance of ₦{} created for student {} " +
                             "after dropping course {} during add/drop",
                     creditToGenerate,
@@ -1594,6 +1586,63 @@ public class RegistrationServiceImp implements RegistrationService{
         tuitionRepository.save(account);
 
         return newTotalDue;
+    }
+
+    private BigDecimal reconcileCurrentSemesterCredit(
+            Registration registration,
+            TuitionAccount account) {
+
+        List<CreditBalance> semesterCredits = creditBalanceRepository
+                .findByStudentIdAndSourceSemesterId(
+                        registration.getStudent().getId(),
+                        registration.getSemester().getId());
+
+        BigDecimal appliedCredit = semesterCredits.stream()
+                .filter(credit -> Boolean.TRUE.equals(credit.getIsApplied()))
+                .map(CreditBalance::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        List<CreditBalance> availableCredits = semesterCredits.stream()
+                .filter(credit -> !Boolean.TRUE.equals(credit.getIsApplied()))
+                .toList();
+
+        BigDecimal targetAvailableCredit = account.getTotalPaid()
+                .subtract(account.getTotalDue())
+                .subtract(appliedCredit)
+                .max(BigDecimal.ZERO);
+
+        BigDecimal existingAvailableCredit = availableCredits.stream()
+                .map(CreditBalance::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal creditDifference = targetAvailableCredit.subtract(existingAvailableCredit);
+        if (creditDifference.compareTo(BigDecimal.ZERO) > 0) {
+            if (availableCredits.isEmpty()) {
+                createCreditBalance(
+                        registration.getStudent(),
+                        registration.getSemester(),
+                        creditDifference);
+            } else {
+                CreditBalance credit = availableCredits.get(0);
+                credit.setAmount(credit.getAmount().add(creditDifference));
+                creditBalanceRepository.save(credit);
+            }
+        } else if (creditDifference.compareTo(BigDecimal.ZERO) < 0) {
+            BigDecimal excessCredit = creditDifference.abs();
+            for (CreditBalance credit : availableCredits) {
+                BigDecimal reduction = credit.getAmount().min(excessCredit);
+                if (reduction.compareTo(BigDecimal.ZERO) > 0) {
+                    credit.setAmount(credit.getAmount().subtract(reduction));
+                    creditBalanceRepository.save(credit);
+                    excessCredit = excessCredit.subtract(reduction);
+                }
+                if (excessCredit.compareTo(BigDecimal.ZERO) == 0) {
+                    break;
+                }
+            }
+        }
+
+        return creditDifference.max(BigDecimal.ZERO);
     }
 
 
