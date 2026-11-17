@@ -10,10 +10,12 @@ import com.kad.jet.finance.model.CreditBalance;
 import com.kad.jet.finance.model.FeeStructure;
 import com.kad.jet.finance.model.TuitionAccount;
 import com.kad.jet.finance.model.TuitionAccountStatus;
+import com.kad.jet.finance.model.Waiver;
 import com.kad.jet.finance.repository.AdminChargeRepository;
 import com.kad.jet.finance.repository.CreditBalanceRepository;
 import com.kad.jet.finance.repository.FeeStructureRepository;
 import com.kad.jet.finance.repository.TuitionAccountRepository;
+import com.kad.jet.finance.repository.WaiverRepository;
 import com.kad.jet.program.model.Program;
 import com.kad.jet.registration.dto.AddDropCourseRequest;
 import com.kad.jet.registration.model.Registration;
@@ -66,6 +68,7 @@ class RegistrationAddDropCarryoverTest {
     @Mock FeeStructureRepository feeStructureRepository;
     @Mock AdminChargeRepository adminChargeRepository;
     @Mock CreditBalanceRepository creditBalanceRepository;
+    @Mock WaiverRepository waiverRepository;
     @Mock UserRepository userRepository;
     @Mock SystemConfigService systemConfigService;
     @Mock ApplicationEventPublisher eventPublisher;
@@ -235,6 +238,133 @@ class RegistrationAddDropCarryoverTest {
         invocationOrder.verify(registrationRepository).findById(item.getRegistration().getId());
         assertSame(tuitionAccount, tuitionRepository
                 .findByRegistrationIdWithLock(item.getRegistration().getId()).orElseThrow());
+    }
+
+    @Test
+    void addingCourseUsesApprovedWaiverPercentageForNewMinimumPayment() {
+        RegistrationItem item = item(false, true);
+        List<CreditBalance> credits = new java.util.ArrayList<>();
+        TuitionAccount account = prepareFinancialFlow(item, credits,
+                new BigDecimal("25000"), new BigDecimal("60000"));
+        useRealisticFee(item);
+        when(waiverRepository.findByTuitionAccountId(account.getId()))
+                .thenReturn(Optional.of(waiver(account, 40)));
+
+        var response = service.addCourseDuringAddDrop(student,
+                item.getRegistration().getId(), addRequest(item.getCourse()));
+
+        assertEquals(new BigDecimal("90000"), response.getNewTotalDue());
+        assertEquals(new BigDecimal("90000"), account.getTotalDue());
+        assertEquals(new BigDecimal("36000.00"), account.getMinimumPayment());
+        assertEquals(new BigDecimal("25000"), account.getTotalPaid());
+        assertEquals(new BigDecimal("65000"), account.getBalance());
+        assertTrue(credits.isEmpty());
+        verify(waiverRepository).findByTuitionAccountId(account.getId());
+        verify(systemConfigService, never()).getIntValue(SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
+        verify(tuitionRepository).save(account);
+        verify(tuitionRepository).findByRegistrationIdWithLock(item.getRegistration().getId());
+    }
+
+    @Test
+    void droppingCourseUsesApprovedWaiverPercentageForRecalculatedMinimumPayment() {
+        RegistrationItem item = item(false, true);
+        List<CreditBalance> credits = new java.util.ArrayList<>();
+        TuitionAccount account = prepareFinancialFlow(item, credits,
+                new BigDecimal("25000"), new BigDecimal("60000"));
+        useRealisticFee(item);
+        when(waiverRepository.findByTuitionAccountId(account.getId()))
+                .thenReturn(Optional.of(waiver(account, 40)));
+
+        var response = service.dropCourseDuringAddDrop(student,
+                item.getRegistration().getId(), item.getCourse().getId(), null);
+
+        assertEquals(new BigDecimal("30000"), response.getNewTotalDue());
+        assertEquals(new BigDecimal("30000"), account.getTotalDue());
+        assertEquals(new BigDecimal("12000.00"), account.getMinimumPayment());
+        assertEquals(new BigDecimal("25000"), account.getTotalPaid());
+        assertEquals(new BigDecimal("5000"), account.getBalance());
+        assertTrue(credits.isEmpty());
+        verify(waiverRepository).findByTuitionAccountId(account.getId());
+        verify(systemConfigService, never()).getIntValue(SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
+        verify(tuitionRepository).save(account);
+        verify(tuitionRepository).findByRegistrationIdWithLock(item.getRegistration().getId());
+    }
+
+    @Test
+    void repeatedAddDropUsesSamePersistedWaiverPercentageForEachNewTotal() {
+        RegistrationItem item = item(false, true);
+        List<CreditBalance> credits = new java.util.ArrayList<>();
+        TuitionAccount account = prepareFinancialFlow(item, credits,
+                new BigDecimal("20000"), new BigDecimal("60000"));
+        useRealisticFee(item);
+        when(waiverRepository.findByTuitionAccountId(account.getId()))
+                .thenReturn(Optional.of(waiver(account, 40)));
+        List<BigDecimal> savedTotals = new java.util.ArrayList<>();
+        List<BigDecimal> savedMinimums = new java.util.ArrayList<>();
+        doAnswer(invocation -> {
+            TuitionAccount saved = invocation.getArgument(0);
+            savedTotals.add(saved.getTotalDue());
+            savedMinimums.add(saved.getMinimumPayment());
+            return saved;
+        }).when(tuitionRepository).save(any(TuitionAccount.class));
+
+        service.addCourseDuringAddDrop(student, item.getRegistration().getId(),
+                addRequest(item.getCourse()));
+        service.dropCourseDuringAddDrop(student, item.getRegistration().getId(),
+                item.getCourse().getId(), null);
+        service.addCourseDuringAddDrop(student, item.getRegistration().getId(),
+                addRequest(item.getCourse()));
+        service.dropCourseDuringAddDrop(student, item.getRegistration().getId(),
+                item.getCourse().getId(), null);
+
+        assertEquals(List.of(new BigDecimal("90000"), new BigDecimal("60000"),
+                        new BigDecimal("90000"), new BigDecimal("60000")), savedTotals);
+        assertEquals(List.of(new BigDecimal("36000.00"), new BigDecimal("24000.00"),
+                        new BigDecimal("36000.00"), new BigDecimal("24000.00")), savedMinimums);
+        assertEquals(new BigDecimal("20000"), account.getTotalPaid());
+        assertEquals(new BigDecimal("40000"), account.getBalance());
+        assertTrue(credits.isEmpty());
+        verify(waiverRepository, times(4)).findByTuitionAccountId(account.getId());
+        verify(systemConfigService, never()).getIntValue(SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
+        verify(tuitionRepository, times(4))
+                .findByRegistrationIdWithLock(item.getRegistration().getId());
+    }
+
+    @Test
+    void addAndDropWithoutWaiverUseConfiguredMinimumPaymentPercentage() {
+        RegistrationItem item = item(false, true);
+        List<CreditBalance> credits = new java.util.ArrayList<>();
+        TuitionAccount account = prepareFinancialFlow(item, credits,
+                new BigDecimal("25000"), new BigDecimal("60000"));
+        useRealisticFee(item);
+        when(systemConfigService.getIntValue(SystemConfigKeys.MIN_PAYMENT_PERCENTAGE))
+                .thenReturn(70);
+        List<BigDecimal> savedMinimums = new java.util.ArrayList<>();
+        doAnswer(invocation -> {
+            TuitionAccount saved = invocation.getArgument(0);
+            savedMinimums.add(saved.getMinimumPayment());
+            return saved;
+        }).when(tuitionRepository).save(any(TuitionAccount.class));
+
+        service.addCourseDuringAddDrop(student, item.getRegistration().getId(),
+                addRequest(item.getCourse()));
+        assertEquals(new BigDecimal("90000"), account.getTotalDue());
+        assertEquals(new BigDecimal("65000"), account.getBalance());
+
+        service.dropCourseDuringAddDrop(student, item.getRegistration().getId(),
+                item.getCourse().getId(), null);
+
+        assertEquals(List.of(new BigDecimal("63000.00"), new BigDecimal("42000.00")),
+                savedMinimums);
+        assertEquals(new BigDecimal("60000"), account.getTotalDue());
+        assertEquals(new BigDecimal("25000"), account.getTotalPaid());
+        assertEquals(new BigDecimal("35000"), account.getBalance());
+        assertTrue(credits.isEmpty());
+        verify(waiverRepository, times(2)).findByTuitionAccountId(account.getId());
+        verify(systemConfigService, times(2))
+                .getIntValue(SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
+        verify(tuitionRepository, times(2))
+                .findByRegistrationIdWithLock(item.getRegistration().getId());
     }
 
     @Test
@@ -477,6 +607,20 @@ class RegistrationAddDropCarryoverTest {
         lenient().when(systemConfigService.getIntValue(SystemConfigKeys.MIN_PAYMENT_PERCENTAGE))
                 .thenReturn(0);
         return tuitionAccount;
+    }
+
+    private void useRealisticFee(RegistrationItem item) {
+        when(feeStructureRepository.findBySemesterIdAndProgramId(
+                item.getRegistration().getSemester().getId(), profile.getProgram().getId()))
+                .thenReturn(Optional.of(FeeStructure.builder()
+                        .costPerCreditUnit(new BigDecimal("10000")).build()));
+    }
+
+    private Waiver waiver(TuitionAccount account, int allowedPaymentPercentage) {
+        return Waiver.builder().id(UUID.randomUUID()).tuitionAccount(account)
+                .allowedPaymentPercentage(allowedPaymentPercentage)
+                .reducedMinimumPayment(new BigDecimal("24000"))
+                .reason("Financial hardship").build();
     }
 
     private CreditBalance credit(Semester sourceSemester, BigDecimal amount, boolean applied) {

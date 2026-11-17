@@ -8,6 +8,7 @@ import com.kad.jet.course.repository.CourseRepository;
 import com.kad.jet.finance.model.*;
 import com.kad.jet.finance.repository.AdminChargeRepository;
 import com.kad.jet.finance.repository.FeeStructureRepository;
+import com.kad.jet.finance.repository.WaiverRepository;
 import com.kad.jet.notification.event.AddDropCourseEvent;
 import com.kad.jet.notification.event.RegistrationApprovedEvent;
 import com.kad.jet.notification.event.RegistrationRejectedEvent;
@@ -66,6 +67,7 @@ public class RegistrationServiceImp implements RegistrationService{
     private final TuitionAccountRepository tuitionRepository;
     private final FeeStructureRepository feeStructureRepository;
     private final AdminChargeRepository adminChargeRepository;
+    private final WaiverRepository waiverRepository;
     private final CreditBalanceRepository creditBalanceRepository;
     private final UserRepository userRepository;
     private final SystemConfigService systemConfigService;
@@ -1546,8 +1548,11 @@ public class RegistrationServiceImp implements RegistrationService{
         account.setTotalDue(newTotalDue);
 
         // Recalculate minimum payment
-        int minPercentage = systemConfigService.getIntValue(
-                SystemConfigKeys.MIN_PAYMENT_PERCENTAGE);
+        int minPercentage = waiverRepository
+                .findByTuitionAccountId(account.getId())
+                .map(Waiver::getAllowedPaymentPercentage)
+                .orElseGet(() -> systemConfigService.getIntValue(
+                        SystemConfigKeys.MIN_PAYMENT_PERCENTAGE));
 
         BigDecimal newMinimumPayment = newTotalDue
                 .multiply(BigDecimal.valueOf(minPercentage))
