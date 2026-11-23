@@ -7,6 +7,7 @@ public record ReconciliationJobPaymentVerifiedEvent(
         UUID paymentId,
         UUID tuitionAccountId,
         UUID studentId,
-        BigDecimal amount
+        BigDecimal amount,
+        boolean appliedToAccount
 ) {
 }

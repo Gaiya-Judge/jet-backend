@@ -103,7 +103,9 @@ public class NotificationEventListener {
                     NotificationType.PAYMENT_VERIFIED,
                     "Payment Verified",
                     "Your payment of ₦" + event.amount() +
-                            " has been verified and applied to your tuition account.",
+                            (event.appliedToAccount()
+                                ? " has been verified and applied to your tuition account."
+                                : " has been verified but was not applied to your tuition account."),
                     "TUITION_ACCOUNT",
                     event.tuitionAccountId()
             );
@@ -692,7 +694,9 @@ public class NotificationEventListener {
                     NotificationType.PAYMENT_VERIFIED,
                     "Payment Verified",
                     "Your payment of ₦" + event.amount() +
-                            " has been verified and applied to your tuition account.",
+                            (event.appliedToAccount()
+                                ? " has been verified and applied to your tuition account."
+                                : " has been verified but was not applied to your tuition account."),
                     "TUITION_ACCOUNT",
                     event.tuitionAccountId()
             );

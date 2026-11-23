@@ -5,8 +5,10 @@ import com.kad.jet.finance.model.PaymentMethod;
 import com.kad.jet.finance.model.PaymentStatus;
 import com.kad.jet.finance.model.TuitionAccount;
 import com.kad.jet.finance.repository.PaymentRepository;
+import com.kad.jet.notification.event.ReconciliationJobPaymentVerifiedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,8 +21,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class InternalPaymentHelperService {
 
-    private final PaymentRepository paymentRepository;
-    private final TuitionAccountDomainService tuitionAccountDomainService;
+        private final PaymentRepository paymentRepository;
+        private final TuitionAccountDomainService tuitionAccountDomainService;
+        private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public Payment saveInitiatedPayment(
@@ -56,11 +59,16 @@ public class InternalPaymentHelperService {
 
     @Transactional
     public void applyVerifiedPayment(Payment payment) {
-        tuitionAccountDomainService
+        boolean appliedToAccount = tuitionAccountDomainService
                 .updateTuitionAccountAndProcessRegistration(payment.getId());
 
-        log.info("Verified payment {} applied to tuition account.",
-                payment.getPaystackReference());
+        if (appliedToAccount) {
+            log.info("Verified payment {} applied to tuition account.",
+                    payment.getPaystackReference());
+        } else {
+            log.warn("Verified payment {} was not applied because the tuition account is already PAID.",
+                    payment.getPaystackReference());
+        }
     }
 
     @Transactional
@@ -86,7 +94,16 @@ public class InternalPaymentHelperService {
         payment.setVerifiedAt(LocalDateTime.now());
         paymentRepository.save(payment);
 
-        tuitionAccountDomainService.updateTuitionAccountAndProcessRegistration(payment.getId());
+        boolean appliedToAccount = tuitionAccountDomainService
+                .updateTuitionAccountAndProcessRegistration(payment.getId());
+
+        eventPublisher.publishEvent(new ReconciliationJobPaymentVerifiedEvent(
+                payment.getId(),
+                payment.getTuitionAccount().getId(),
+                payment.getTuitionAccount().getStudent().getId(),
+                payment.getAmount(),
+                appliedToAccount
+        ));
 
         log.info("Payment {} verified via reconciliation. " +
                         "Amount: ₦{}",

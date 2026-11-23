@@ -29,7 +29,7 @@ public class TuitionAccountDomainService {
     private final EntityManager entityManager;
 
     @Transactional
-    public void updateTuitionAccountAndProcessRegistration(UUID paymentId) {
+    public boolean updateTuitionAccountAndProcessRegistration(UUID paymentId) {
 
         // 1. Pessimistic Lock: This forces other threads to wait!
         Payment payment = paymentRepository.findByIdWithLock(paymentId)
@@ -37,7 +37,7 @@ public class TuitionAccountDomainService {
 
         if (Boolean.TRUE.equals(payment.getAppliedToAccount())) {
             log.warn("Payment {} already applied. Skipping.", payment.getPaystackReference());
-            return;
+            return true;
         }
 
         TuitionAccount account = payment.getTuitionAccount();
@@ -51,10 +51,7 @@ public class TuitionAccountDomainService {
                             "Reference: {}. No changes made.",
                     lockedAccount.getId(),
                     payment.getPaystackReference());
-
-            payment.setAppliedToAccount(true);
-            paymentRepository.save(payment);
-            return;
+            return false;
         }
 
         // totalPaid always reflects actual cash received
@@ -105,5 +102,6 @@ public class TuitionAccountDomainService {
 
         payment.setAppliedToAccount(true);
         paymentRepository.save(payment);
+        return true;
     }
 }

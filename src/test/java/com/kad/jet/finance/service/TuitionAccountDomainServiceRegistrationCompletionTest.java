@@ -24,6 +24,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -64,10 +66,13 @@ class TuitionAccountDomainServiceRegistrationCompletionTest {
 
     @Test
     void reachingMinimumPaymentCompletesApprovedRegistrationWithoutFullPayment() {
-        service.updateTuitionAccountAndProcessRegistration(payment.getId());
+        boolean appliedToAccount =
+            service.updateTuitionAccountAndProcessRegistration(payment.getId());
 
+        assertTrue(appliedToAccount);
         assertEquals(TuitionAccountStatus.PARTIAL, account.getTuitionAccountStatus());
         assertEquals(new BigDecimal("70.00"), account.getTotalPaid());
+        assertTrue(payment.getAppliedToAccount());
         assertEquals(RegistrationStatus.COMPLETED, registration.getStatus());
         verify(tuitionAccountRepository).save(account);
         verify(registrationRepository).save(registration);
@@ -90,13 +95,34 @@ class TuitionAccountDomainServiceRegistrationCompletionTest {
     void repeatedApplicationDoesNotUpdateAccountAgain() {
         payment.setAppliedToAccount(true);
 
-        service.updateTuitionAccountAndProcessRegistration(payment.getId());
+        boolean appliedToAccount =
+            service.updateTuitionAccountAndProcessRegistration(payment.getId());
 
+        assertTrue(appliedToAccount);
         assertEquals(BigDecimal.ZERO, account.getTotalPaid());
         verify(tuitionAccountRepository, never()).save(any());
         verify(registrationRepository, never()).save(any());
         verify(paymentRepository, never()).save(any());
         verifyNoInteractions(entityManager);
+    }
+
+    @Test
+    void alreadyPaidAccountDoesNotChangeTotalsOrMarkPaymentApplied() {
+        account.setTuitionAccountStatus(TuitionAccountStatus.PAID);
+        account.setTotalPaid(new BigDecimal("100.00"));
+        account.setBalance(BigDecimal.ZERO);
+
+        boolean appliedToAccount =
+            service.updateTuitionAccountAndProcessRegistration(payment.getId());
+
+        assertFalse(appliedToAccount);
+        assertEquals(new BigDecimal("100.00"), account.getTotalPaid());
+        assertEquals(BigDecimal.ZERO, account.getBalance());
+        assertEquals(TuitionAccountStatus.PAID, account.getTuitionAccountStatus());
+        assertFalse(payment.getAppliedToAccount());
+        verify(tuitionAccountRepository, never()).save(any());
+        verify(registrationRepository, never()).save(any());
+        verify(paymentRepository, never()).save(any());
     }
 
     @Test

@@ -6,7 +6,6 @@ import com.kad.jet.finance.model.WebhookEvent;
 import com.kad.jet.finance.repository.PaymentRepository;
 import com.kad.jet.finance.repository.WebhookEventRepository;
 import com.kad.jet.notification.event.ReconciliationJobPaymentFailedEvent;
-import com.kad.jet.notification.event.ReconciliationJobPaymentVerifiedEvent;
 import jakarta.transaction.Transactional;
 import jdk.jfr.EventType;
 import lombok.RequiredArgsConstructor;
@@ -67,14 +66,6 @@ public class ReconciliationJob {
                 if ("success".equals(status)) {
                     paymentHelperService.processVerifiedPayment(payment, paystackData);
                     verified++;
-                    eventPublisher.publishEvent(
-                            new ReconciliationJobPaymentVerifiedEvent(
-                                    payment.getId(),
-                                    payment.getTuitionAccount().getId(),
-                                    payment.getTuitionAccount().getStudent().getId(),
-                                    payment.getAmount()
-                            )
-                    );
 
                 } else if ("failed".equals(status)
                         || "abandoned".equals(status)) {

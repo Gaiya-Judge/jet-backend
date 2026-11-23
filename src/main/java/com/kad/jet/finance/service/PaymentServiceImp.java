@@ -190,7 +190,8 @@ public class PaymentServiceImp implements PaymentService {
                                 verifiedPayment.getId(),
                                 verifiedPayment.getTuitionAccount().getId(),
                                 verifiedPayment.getTuitionAccount().getStudent().getId(),
-                                verifiedPayment.getAmount()
+                                verifiedPayment.getAmount(),
+                                Boolean.TRUE.equals(verifiedPayment.getAppliedToAccount())
                         )
                 );
             }
@@ -317,7 +318,8 @@ public class PaymentServiceImp implements PaymentService {
                         payment.getId(),
                         payment.getTuitionAccount().getId(),
                         payment.getTuitionAccount().getStudent().getId(),
-                        payment.getAmount()
+                        payment.getAmount(),
+                        Boolean.TRUE.equals(payment.getAppliedToAccount())
                 )
         );
 
@@ -506,7 +508,8 @@ public class PaymentServiceImp implements PaymentService {
                                 payment.getId(),
                                 payment.getTuitionAccount().getId(),
                                 payment.getTuitionAccount().getStudent().getId(),
-                                payment.getAmount()
+                                payment.getAmount(),
+                                Boolean.TRUE.equals(payment.getAppliedToAccount())
                         )
                 );
 
