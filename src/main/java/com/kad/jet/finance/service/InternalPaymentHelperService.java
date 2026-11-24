@@ -51,9 +51,8 @@ public class InternalPaymentHelperService {
 
         //get amount
         Object amountObj = paystackData.get("amount");
-        BigDecimal paidAmountNaira = BigDecimal
-                .valueOf(((Number) amountObj).longValue())
-                .divide(BigDecimal.valueOf(100));
+        BigDecimal paidAmountNaira =
+                PaystackAmountConverter.toNaira(amountObj);
 
         if (paidAmountNaira.compareTo(payment.getAmount()) != 0){
             log.error("Amount mismatch for reconciliation " +

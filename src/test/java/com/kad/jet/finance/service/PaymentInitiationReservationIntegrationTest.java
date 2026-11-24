@@ -131,6 +131,45 @@ class PaymentInitiationReservationIntegrationTest {
     }
 
     @Test
+    void amountWithNonZeroFractionalKoboIsRejectedBeforeReservation() {
+        AccountFixture fixture = createAccount(
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO,
+                new BigDecimal("10.00"),
+                BigDecimal.ZERO,
+                TuitionAccountStatus.PENDING);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> initiatePaystack(fixture, new BigDecimal("10.009")));
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        assertTrue(paymentRepository
+                .findByTuitionAccountId(fixture.accountId()).isEmpty());
+        verify(paystackClient, never())
+                .initializeTransaction(anyString(), any(), anyString());
+    }
+
+    @Test
+    void amountWithTrailingZeroPrecisionIsAccepted() {
+        AccountFixture fixture = createAccount(
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO,
+                new BigDecimal("10.00"),
+                BigDecimal.ZERO,
+                TuitionAccountStatus.PENDING);
+        mockSuccessfulPaystackInitialization();
+
+        initiatePaystack(fixture, new BigDecimal("10.000"));
+
+        List<Payment> payments =
+                paymentRepository.findByTuitionAccountId(fixture.accountId());
+        assertEquals(1, payments.size());
+        assertEquals(new BigDecimal("10.00"), payments.get(0).getAmount());
+        assertEquals(PaymentStatus.PENDING, payments.get(0).getStatus());
+    }
+
+    @Test
     void concurrentSameAccountReservationsCannotExceedAvailableBalance()
             throws Exception {
         AccountFixture fixture = createAccount(

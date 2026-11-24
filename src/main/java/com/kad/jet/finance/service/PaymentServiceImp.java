@@ -471,10 +471,8 @@ public class PaymentServiceImp implements PaymentService {
 
                 //verify the amount matches
                 Object amountObj = paystackData.get("amount");
-                BigDecimal paidAmountNaira = BigDecimal
-                        .valueOf(((Number) amountObj).longValue())
-                        //converting the naira to kobo
-                        .divide(BigDecimal.valueOf(100));
+                BigDecimal paidAmountNaira =
+                        PaystackAmountConverter.toNaira(amountObj);
 
                 if (paidAmountNaira.compareTo(payment.getAmount()) != 0){
                     log.error("Amount mismatch on manual verify " +
@@ -637,9 +635,8 @@ public class PaymentServiceImp implements PaymentService {
         // Verify the amount Paystack charged matches
         // what we expected. Paystack returns amount in KOBO.
         Object amountObj = data.get("amount");
-        BigDecimal paidAmountNaira = BigDecimal
-                .valueOf(((Number) amountObj).longValue())
-                .divide(BigDecimal.valueOf(100));
+        BigDecimal paidAmountNaira =
+                PaystackAmountConverter.toNaira(amountObj);
 
         if (paidAmountNaira.compareTo(payment.getAmount()) != 0) {
             log.error("AMOUNT MISMATCH for reference {}. " +

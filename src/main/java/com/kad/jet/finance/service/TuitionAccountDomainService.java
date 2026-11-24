@@ -41,6 +41,15 @@ public class TuitionAccountDomainService {
             BigDecimal amount,
             String reference) {
 
+        try {
+            amount = PaystackAmountConverter.normalizeNairaAmount(amount);
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "payment amount must be representable in whole Kobo",
+                    exception);
+        }
+
         TuitionAccount account = lockTuitionAccount(tuitionAccountId);
         validatePaystackPaymentRequest(student, account, amount);
 

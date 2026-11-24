@@ -28,9 +28,7 @@ public class PaystackClient {
         // Paystack requires amount in KOBO not Naira
         // 1 Naira = 100 kobo
         // ₦5,000 = 500,000 kobo
-        long amountInKobo = amountInNaira
-                .multiply(BigDecimal.valueOf(100))
-                .longValue();
+        long amountInKobo = PaystackAmountConverter.toKobo(amountInNaira);
 
         //put all required body in the send request
         Map<String, Object> body = new HashMap<>();
