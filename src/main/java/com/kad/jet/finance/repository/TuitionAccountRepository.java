@@ -16,6 +16,10 @@ import java.util.UUID;
 public interface TuitionAccountRepository extends JpaRepository<TuitionAccount, UUID> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT t FROM TuitionAccount t WHERE t.id = :id")
+    Optional<TuitionAccount> findByIdWithLock(@Param("id") UUID id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT t FROM TuitionAccount t WHERE t.registration.id = :registrationId")
     Optional<TuitionAccount> findByRegistrationIdWithLock(@Param("registrationId") UUID registrationId);
 

@@ -65,14 +65,6 @@ public class PaymentServiceImp implements PaymentService {
                     currentUser == null ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN, "unauthorized request");
         }
 
-        // Read tuition account — no transaction needed for reads
-        TuitionAccount tuitionAccount = findTuitionAccount(
-                request.getTuitionAccountId());
-
-        // Validate all business rules before calling Paystack
-        validatePaymentRequest(currentUser,
-                tuitionAccount, request.getAmount());
-
         // Generate reference before calling Paystack
         // We need it for both the Paystack call and our DB record
         String reference = generatePaymentReference();
@@ -83,10 +75,10 @@ public class PaymentServiceImp implements PaymentService {
                 request.getAmount(),
                 reference);
 
-        // SHORT transaction — just save the payment record FIRST
-        // This ensures we have a record even if Paystack call fails
-        Payment initiatedPayment = internalPaymentHelperService.saveInitiatedPayment(
-                tuitionAccount,
+        // Reserve the amount in a short transaction before contacting Paystack.
+        Payment initiatedPayment = tuitionAccountDomainService.reservePaystackPayment(
+                currentUser,
+                request.getTuitionAccountId(),
                 request.getAmount(),
                 reference);
 
@@ -673,101 +665,6 @@ public class PaymentServiceImp implements PaymentService {
                 reference, paidAmountNaira);
 
         return payment;
-    }
-
-    private void validatePaymentRequest(
-            _User student,
-            TuitionAccount account,
-            BigDecimal amount) {
-
-        // Student can only pay their own account
-        if (!account.getStudent().getId()
-                .equals(student.getId())) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "this tuition account does not belong to you");
-        }
-
-        // Cannot pay a fully settled account
-        if (account.getTuitionAccountStatus() == TuitionAccountStatus.PAID) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "this tuition account is already fully paid");
-        }
-
-        BigDecimal pendingAmount = paymentRepository
-                .sumActivePendingAmounts(
-                        account.getId(),LocalDateTime.now());
-
-        // Available to pay = balance minus what is already
-        // in-flight as pending payments
-        BigDecimal availableBalance = account.getBalance()
-                .subtract(pendingAmount);
-
-        if (availableBalance.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "you have a payment currently being processed. " +
-                            "please wait for it to complete or try again " +
-                            "in 30 minutes if you did not complete the payment.");
-        }
-
-        // In validatePaymentRequest
-        // Check balance is actually greater than zero
-        if (account.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "this tuition account has no outstanding balance. " +
-                            "current balance is ₦" + account.getBalance());
-        }
-
-        // Amount cannot exceed available balance
-        if (amount.compareTo(availableBalance) > 0) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "payment amount ₦" + amount +
-                            " exceeds available balance ₦" +
-                            availableBalance);
-        }
-
-        // First payment — must meet the 70% minimum
-        // First payment minimum check
-        if (account.getTotalPaid()
-                .compareTo(BigDecimal.ZERO) == 0
-                && pendingAmount.compareTo(BigDecimal.ZERO) == 0) {
-
-            // account.getMinimumPayment() already reflects
-            // any waiver the Bursar applied
-            // No need to recalculate from system config
-            if (amount.compareTo(
-                    account.getMinimumPayment()) < 0) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "minimum payment required is ₦" +
-                                account.getMinimumPayment() +
-                                ". you attempted to pay ₦" + amount +
-                                ". if you have a waiver it has been " +
-                                "applied to this amount already.");
-            }
-        }
-
-        // Subsequent payment — must pay exact remaining balance
-        // Business rule: remaining balance paid in full
-        // in one transaction
-        if (account.getTotalPaid()
-                .compareTo(BigDecimal.ZERO) > 0) {
-
-            if (amount.compareTo(account.getBalance()) != 0) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "remaining balance must be paid in full. " +
-                                "outstanding balance is ₦" +
-                                account.getBalance() +
-                                ". you attempted to pay ₦" + amount +
-                                ". contact the bursar if you need " +
-                                "special payment arrangements.");
-            }
-        }
     }
 
     private TuitionAccount findTuitionAccount(UUID id) {
