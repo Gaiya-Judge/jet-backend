@@ -16,6 +16,11 @@ import java.util.function.Function;
 @Service
 public class JwtUtil {
 
+    public enum TokenType {
+        ACCESS,
+        REFRESH
+    }
+
     private static String jwtSecretKey;
     private static long jwtAccessKeyExpiration;
     private static long jwtRefreshTokenKeyExpiration;
@@ -64,15 +69,24 @@ public class JwtUtil {
 
     //generate token
     public static String jwtBuilder(_User user, long expiration){
+        return jwtBuilder(user, expiration, TokenType.ACCESS);
+    }
+
+    public static String jwtBuilder(
+            _User user,
+            long expiration,
+            TokenType tokenType) {
         Map<String, Object> claims = new HashMap<>();
 
         //insert claims
         claims.put("userId", user.getId().toString());
         claims.put("userAuthority", user.getAuthorities());
+        claims.put("tokenType", Objects.requireNonNull(tokenType).name());
 
         return Jwts
                 .builder()
                 .claims(claims)
+                .id(UUID.randomUUID().toString())
                 .subject(user.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + expiration))
@@ -101,6 +115,46 @@ public class JwtUtil {
         return extractClaim(token, Claims::getSubject);
     }
 
+    public static TokenType extractTokenType(String token) {
+        Object tokenType = extractClaim(
+                token, claims -> claims.get("tokenType"));
+        if (!(tokenType instanceof String value)) {
+            throw new IllegalArgumentException(
+                    "JWT token type claim is missing or malformed");
+        }
+
+        try {
+            return TokenType.valueOf(value);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException(
+                    "JWT token type claim is unsupported", exception);
+        }
+    }
+
+    public static boolean isTokenType(String token, TokenType expectedType) {
+        return extractTokenType(token) == Objects.requireNonNull(expectedType);
+    }
+
+    public static UUID extractJti(String token) {
+        Object jti = extractClaim(token, claims -> claims.get("jti"));
+        if (!(jti instanceof String value) || value.isBlank()) {
+            throw new IllegalArgumentException(
+                    "JWT jti claim is missing or malformed");
+        }
+
+        try {
+            UUID id = UUID.fromString(value);
+            if (!id.toString().equalsIgnoreCase(value)) {
+                throw new IllegalArgumentException(
+                        "JWT jti claim is not a canonical UUID");
+            }
+            return id;
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException(
+                    "JWT jti claim must be a valid UUID", exception);
+        }
+    }
+
     //extracting token expiration
     public static Date extractExpiration(String token){
         return extractClaim(token, Claims::getExpiration);
@@ -119,11 +173,11 @@ public class JwtUtil {
 
     //generate accessToken
     public static String generateAccessToken(_User user){
-        return jwtBuilder(user, jwtAccessKeyExpiration);
+        return jwtBuilder(user, jwtAccessKeyExpiration, TokenType.ACCESS);
     }
 
     public static String generateRefreshToken(_User user){
-        return jwtBuilder(user, jwtRefreshTokenKeyExpiration);
+        return jwtBuilder(user, jwtRefreshTokenKeyExpiration, TokenType.REFRESH);
     }
 
 

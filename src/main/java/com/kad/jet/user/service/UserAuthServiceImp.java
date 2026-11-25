@@ -98,13 +98,22 @@ public class UserAuthServiceImp implements UserAuthService{
                         HttpStatus.UNAUTHORIZED,
                         "Refresh token expired");
             }
+            if (!JwtUtil.isTokenType(
+                    refreshToken, JwtUtil.TokenType.REFRESH)) {
+                throw new ResponseStatusException(
+                        HttpStatus.UNAUTHORIZED,
+                        "Invalid refresh token type");
+            }
+        } catch (ResponseStatusException exception) {
+            throw exception;
         } catch (Exception e) {
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED,
                     "Invalid refresh token format");
         }
 
-        RefreshToken tokenEntity = refreshTokenRepository.findByToken(refreshToken)
+        RefreshToken tokenEntity = refreshTokenRepository
+                .findByTokenForUpdate(refreshToken)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token"));
 
         if (tokenEntity.getIsRevoked()) {

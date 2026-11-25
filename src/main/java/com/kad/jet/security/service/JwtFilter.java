@@ -44,6 +44,10 @@ public class JwtFilter extends OncePerRequestFilter {
 
         final String email;
         try {
+            if (!JwtUtil.isTokenType(jwt, JwtUtil.TokenType.ACCESS)) {
+                writeInvalidTokenResponse(request, response, null);
+                return;
+            }
             email = JwtUtil.extractEmail(jwt);
         } catch (JwtException | IllegalArgumentException e) {
             writeInvalidTokenResponse(request, response, e);

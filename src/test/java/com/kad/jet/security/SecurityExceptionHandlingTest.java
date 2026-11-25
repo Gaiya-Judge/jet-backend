@@ -19,6 +19,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -110,6 +112,30 @@ class SecurityExceptionHandlingTest {
     }
 
     @Test
+    void validRefreshTokenIsRejectedAsAnAccessToken() throws Exception {
+        assertInvalidJwtReturns401(
+                "Bearer " + JwtUtil.generateRefreshToken(user));
+
+        verifyNoInteractions(userDetails);
+    }
+
+    @Test
+    void jwtWithoutTokenTypeIsRejected() throws Exception {
+        assertInvalidJwtReturns401(
+                "Bearer " + signedToken(false, null));
+
+        verifyNoInteractions(userDetails);
+    }
+
+    @Test
+    void jwtWithUnsupportedTokenTypeIsRejected() throws Exception {
+        assertInvalidJwtReturns401(
+                "Bearer " + signedToken(true, "BEARER"));
+
+        verifyNoInteractions(userDetails);
+    }
+
+    @Test
     void downstreamExceptionIsNotConvertedToInvalidTokenResponse() throws Exception {
         String token = JwtUtil.generateAccessToken(user);
         MockHttpServletRequest request = request();
@@ -159,6 +185,23 @@ class SecurityExceptionHandlingTest {
         assertEquals(message, body.get("message").asText());
         assertEquals("/api/protected", body.get("path").asText());
         assertTrue(body.hasNonNull("timestamp"));
+    }
+
+    private String signedToken(boolean includeType, Object tokenType) {
+        Date now = new Date();
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", user.getId().toString());
+        claims.put("userAuthority", user.getAuthorities());
+        if (includeType) {
+            claims.put("tokenType", tokenType);
+        }
+        return Jwts.builder()
+                .claims(claims)
+                .subject(user.getUsername())
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + 60_000))
+                .signWith(JwtUtil.getSigningKey(SECRET))
+                .compact();
     }
 
     private MockHttpServletRequest request() {
