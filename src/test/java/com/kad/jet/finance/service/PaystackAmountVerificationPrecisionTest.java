@@ -123,7 +123,7 @@ class PaystackAmountVerificationPrecisionTest {
                 () -> paymentService.verifyPaymentStatus(student, REFERENCE));
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exception.getStatusCode());
-        assertEquals(PaymentStatus.FAILED, payment.getStatus());
+        assertEquals(PaymentStatus.PENDING, payment.getStatus());
         verify(tuitionAccountDomainService, never())
                 .updateTuitionAccountAndProcessRegistration(payment.getId());
     }

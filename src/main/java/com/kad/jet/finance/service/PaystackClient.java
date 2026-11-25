@@ -1,8 +1,8 @@
 package com.kad.jet.finance.service;
 
 import com.kad.jet.config.PaystackConfig;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -14,11 +14,17 @@ import java.util.Map;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class PaystackClient {
 
     private final PaystackConfig paystackConfig;
     private final RestTemplate restTemplate;
+
+    public PaystackClient(
+            PaystackConfig paystackConfig,
+            @Qualifier("paystackRestTemplate") RestTemplate restTemplate) {
+        this.paystackConfig = paystackConfig;
+        this.restTemplate = restTemplate;
+    }
 
     public Map<String, Object> initializeTransaction(
             String email,
@@ -53,31 +59,46 @@ public class PaystackClient {
             Map<String, Object> responseBody = response.getBody();
 
             if (responseBody == null ||
-                    !(Boolean) responseBody.get("status")) {
-                String message = responseBody != null
-                        ? (String) responseBody.get("message")
-                        : "no response from Paystack";
-                log.error("Paystack initialization failed: {}",
+                    !Boolean.TRUE.equals(responseBody.get("status"))) {
+                Object responseMessage = responseBody == null
+                        ? null : responseBody.get("message");
+                String message = responseMessage instanceof String text
+                        ? text : "Paystack did not confirm initialization";
+                log.warn("Paystack initialization response did not confirm success: {}",
                         message);
                 throw new ResponseStatusException(
                         HttpStatus.BAD_GATEWAY,
-                        "payment initialization failed: " + message);
+                        "could not confirm payment initialization: " + message);
+            }
+
+            Object data = responseBody.get("data");
+            if (!(data instanceof Map<?, ?> initializationData)
+                    || !(initializationData.get("authorization_url")
+                    instanceof String authorizationUrl)
+                    || authorizationUrl.isBlank()
+                    || !(initializationData.get("access_code")
+                    instanceof String accessCode)
+                    || accessCode.isBlank()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "Paystack returned an unexpected initialization response");
             }
 
             log.info("Paystack transaction initialized " +
                     "successfully. Reference: {}", reference);
 
-            return (Map<String, Object>) responseBody.get("data");
+            return (Map<String, Object>) initializationData;
 
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Could not reach Paystack API: {}",
+            log.error("Paystack initialization did not produce a confirmed response: {}",
                     e.getMessage());
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "could not reach payment provider. " +
-                            "please try again.");
+                    "could not confirm the payment provider response. " +
+                            "please check the payment status later.",
+                    e);
         }
     }
 

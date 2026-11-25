@@ -31,9 +31,13 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -167,6 +171,96 @@ class PaymentInitiationReservationIntegrationTest {
         assertEquals(1, payments.size());
         assertEquals(new BigDecimal("10.00"), payments.get(0).getAmount());
         assertEquals(PaymentStatus.PENDING, payments.get(0).getStatus());
+    }
+
+    @Test
+    void connectionFailureDuringInitializationKeepsReservationPending() {
+        AccountFixture fixture = createPaystackAccount();
+        when(paystackClient.initializeTransaction(
+                anyString(), any(), anyString()))
+                .thenThrow(new ResourceAccessException(
+                        "connection refused",
+                        new ConnectException("connection refused")));
+
+        assertInitializationOutcomeUncertain(fixture);
+    }
+
+    @Test
+    void timeoutDuringInitializationKeepsReservationPending() {
+        AccountFixture fixture = createPaystackAccount();
+        when(paystackClient.initializeTransaction(
+                anyString(), any(), anyString()))
+                .thenThrow(new ResourceAccessException(
+                        "read timed out",
+                        new SocketTimeoutException("read timed out")));
+
+        assertInitializationOutcomeUncertain(fixture);
+    }
+
+    @Test
+    void serverErrorDuringInitializationKeepsReservationPending() {
+        AccountFixture fixture = createPaystackAccount();
+        when(paystackClient.initializeTransaction(
+                anyString(), any(), anyString()))
+                .thenThrow(new HttpServerErrorException(
+                        HttpStatus.BAD_GATEWAY,
+                        "Paystack server error"));
+
+        assertInitializationOutcomeUncertain(fixture);
+    }
+
+    @Test
+    void providerErrorEnvelopeDoesNotProveTransactionWasNotCreated() {
+        AccountFixture fixture = createPaystackAccount();
+        when(paystackClient.initializeTransaction(
+                anyString(), any(), anyString()))
+                .thenThrow(new ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "Paystack returned status false"));
+
+        assertInitializationOutcomeUncertain(fixture);
+    }
+
+    @Test
+    void malformedInitializationResponseKeepsReservationPending() {
+        AccountFixture fixture = createPaystackAccount();
+        when(paystackClient.initializeTransaction(
+                anyString(), any(), anyString()))
+                .thenReturn(null);
+
+        assertInitializationOutcomeUncertain(fixture);
+    }
+
+    @Test
+    void manualVerificationTimeoutKeepsPersistedPaymentPending() {
+        AccountFixture fixture = createPaystackAccount();
+        mockSuccessfulPaystackInitialization();
+        initiatePaystack(fixture, new BigDecimal("70.00"));
+        Payment reservation = paymentRepository
+                .findByTuitionAccountId(fixture.accountId())
+                .get(0);
+        when(paystackClient.verifyTransaction(
+                reservation.getIdempotencyKey()))
+                .thenThrow(new ResourceAccessException(
+                        "read timed out",
+                        new SocketTimeoutException("read timed out")));
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> paymentService.verifyPaymentStatus(
+                        student(fixture),
+                        reservation.getIdempotencyKey()));
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exception.getStatusCode());
+        TransactionTemplate readTransaction =
+                new TransactionTemplate(transactionManager);
+        readTransaction.setPropagationBehavior(
+                TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        Payment persistedPayment = readTransaction.execute(status ->
+                paymentRepository.findById(reservation.getId())
+                        .orElseThrow());
+        assertNotNull(persistedPayment);
+        assertEquals(PaymentStatus.PENDING, persistedPayment.getStatus());
     }
 
     @Test
@@ -408,6 +502,34 @@ class PaymentInitiationReservationIntegrationTest {
         request.setTuitionAccountId(fixture.accountId());
         request.setAmount(amount);
         paymentService.initiatePayment(student(fixture), request);
+    }
+
+    private AccountFixture createPaystackAccount() {
+        return createAccount(
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO,
+                new BigDecimal("70.00"),
+                BigDecimal.ZERO,
+                TuitionAccountStatus.PENDING);
+    }
+
+    private void assertInitializationOutcomeUncertain(AccountFixture fixture) {
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> initiatePaystack(fixture, new BigDecimal("70.00")));
+
+        assertEquals(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                exception.getStatusCode());
+        List<Payment> payments =
+                paymentRepository.findByTuitionAccountId(fixture.accountId());
+        assertEquals(1, payments.size());
+        Payment reservation = payments.get(0);
+        assertEquals(PaymentStatus.PENDING, reservation.getStatus());
+        assertNotNull(reservation.getPaystackReference());
+        assertEquals(
+                reservation.getIdempotencyKey(),
+                reservation.getPaystackReference());
     }
 
     private void mockSuccessfulPaystackInitialization() {

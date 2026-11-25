@@ -76,7 +76,7 @@ public class PaymentServiceImp implements PaymentService {
                 reference);
 
         // Reserve the amount in a short transaction before contacting Paystack.
-        Payment initiatedPayment = tuitionAccountDomainService.reservePaystackPayment(
+        tuitionAccountDomainService.reservePaystackPayment(
                 currentUser,
                 request.getTuitionAccountId(),
                 request.getAmount(),
@@ -102,11 +102,16 @@ public class PaymentServiceImp implements PaymentService {
                     .build();
 
         } catch (Exception e) {
-            log.error("Failed to initialize transaction with Paystack for reference {}: {}", reference, e.getMessage());
-            // Mark the payment as failed if Paystack call fails
-            initiatedPayment.setStatus(PaymentStatus.FAILED);
-            paymentRepository.save(initiatedPayment);
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Failed to initialize payment with Paystack.");
+            log.error(
+                    "Could not confirm Paystack initialization for reference {}. " +
+                            "Keeping the reservation pending for reconciliation: {}",
+                    reference,
+                    e.getMessage());
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Could not confirm payment initialization with Paystack. " +
+                            "The payment status will be checked later.",
+                    e);
         }
     }
 
@@ -515,10 +520,11 @@ public class PaymentServiceImp implements PaymentService {
         } catch (Exception e) {
             log.error("Could not reach Paystack to verify " +
                     "reference {}: {}", reference, e.getMessage());
-            // Mark payment as FAILED if Paystack is unreachable
-            payment.setStatus(PaymentStatus.FAILED);
-            paymentRepository.save(payment);
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Could not reach payment gateway to verify payment. Please try again later.");
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Could not determine the payment status with Paystack. " +
+                            "Please try again later.",
+                    e);
         }
 
         return PaymentMapper.toDto(payment);
