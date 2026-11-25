@@ -9,9 +9,9 @@ import com.kad.jet.finance.model.Payment;
 import com.kad.jet.finance.model.PaymentMethod;
 import com.kad.jet.finance.model.PaymentStatus;
 import com.kad.jet.finance.model.TuitionAccount;
+import com.kad.jet.finance.model.WebhookEvent;
 import com.kad.jet.finance.repository.PaymentRepository;
 import com.kad.jet.finance.repository.TuitionAccountRepository;
-import com.kad.jet.finance.repository.WebhookEventRepository;
 import com.kad.jet.notification.event.PaymentVerifiedEvent;
 import com.kad.jet.registration.model.Registration;
 import com.kad.jet.registration.repository.RegistrationRepository;
@@ -54,7 +54,8 @@ class PaymentServiceImpVerificationEventTest {
     @Mock TuitionAccountRepository tuitionAccountRepository;
     @Mock RegistrationRepository registrationRepository;
     @Mock StudentProfileRepository studentProfileRepository;
-    @Mock WebhookEventRepository webhookEventRepository;
+    @Mock WebhookEventPersistenceService webhookEventPersistenceService;
+    @Mock WebhookEventProcessingService webhookEventProcessingService;
     @Mock SystemConfigService systemConfigService;
     @Mock PaystackClient paystackClient;
     @Mock PaystackConfig paystackConfig;
@@ -75,7 +76,8 @@ class PaymentServiceImpVerificationEventTest {
                 tuitionAccountRepository,
                 registrationRepository,
                 studentProfileRepository,
-                webhookEventRepository,
+                webhookEventPersistenceService,
+                webhookEventProcessingService,
                 systemConfigService,
                 paystackClient,
                 paystackConfig,
@@ -111,20 +113,25 @@ class PaymentServiceImpVerificationEventTest {
     }
 
     @Test
-    void webhookEventUsesOutcomeSetByAccountApplication() throws Exception {
-        payment.setPaymentMethod(PaymentMethod.PAYSTACK);
-        when(paymentRepository.findByIdempotencyKey(REFERENCE)).thenReturn(Optional.of(payment));
+    void webhookIsPersistedBeforeTransactionalProcessing() throws Exception {
         when(paystackConfig.getSecretKey()).thenReturn(WEBHOOK_SECRET);
+        when(webhookEventPersistenceService.persist(any(WebhookEvent.class)))
+                .thenReturn(UUID.randomUUID());
         when(objectMapper.readValue(any(String.class), any(Class.class)))
                 .thenReturn(Map.of(
                         "event", "charge.success",
                         "data", Map.of("reference", REFERENCE, "status", "success", "amount", 7000)));
-        setApplicationOutcome(true);
 
         String payload = "{\"event\":\"charge.success\",\"data\":{\"reference\":\"payment-reference\"}}";
         service.handleWebhook(signature(payload), payload);
 
-        assertPublishedOutcome(true);
+        var callOrder = inOrder(
+                webhookEventPersistenceService,
+                webhookEventProcessingService);
+        callOrder.verify(webhookEventPersistenceService)
+                .persist(any(WebhookEvent.class));
+        callOrder.verify(webhookEventProcessingService)
+                .processIncomingEvent(any(UUID.class));
     }
 
     @Test
@@ -153,11 +160,10 @@ class PaymentServiceImpVerificationEventTest {
     }
 
     @Test
-    void duplicateAppliedWebhookDoesNotPublishAnotherVerifiedEvent() throws Exception {
-        payment.setStatus(PaymentStatus.VERIFIED);
-        payment.setAppliedToAccount(true);
-        when(paymentRepository.findByIdempotencyKey(REFERENCE)).thenReturn(Optional.of(payment));
+    void verifiedPaymentWebhookIsDelegatedToIdempotentProcessor() throws Exception {
         when(paystackConfig.getSecretKey()).thenReturn(WEBHOOK_SECRET);
+        when(webhookEventPersistenceService.persist(any(WebhookEvent.class)))
+                .thenReturn(UUID.randomUUID());
         when(objectMapper.readValue(any(String.class), any(Class.class)))
                 .thenReturn(Map.of(
                         "event", "charge.success",
@@ -167,9 +173,9 @@ class PaymentServiceImpVerificationEventTest {
         service.handleWebhook(signature(payload), payload);
 
         verify(eventPublisher, never()).publishEvent(any(PaymentVerifiedEvent.class));
-        verify(webhookEventRepository, never()).save(any());
-        verify(tuitionAccountDomainService, never())
-                .updateTuitionAccountAndProcessRegistration(payment.getId());
+        verify(webhookEventPersistenceService).persist(any(WebhookEvent.class));
+        verify(webhookEventProcessingService)
+                .processIncomingEvent(any(UUID.class));
     }
 
     private void setApplicationOutcome(boolean applied) {

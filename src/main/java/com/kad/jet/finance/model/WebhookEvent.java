@@ -11,7 +11,12 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "webhook_events")
+@Table(
+        name = "webhook_events",
+        indexes = @Index(
+                name = "uk_webhook_events_event_identity",
+                columnList = "event_identity",
+                unique = true))
 @Data
 @Builder
 @NoArgsConstructor
@@ -35,6 +40,9 @@ public class WebhookEvent {
     // Used to find the matching Payment record
     @Column(nullable = false)
     private String reference;
+
+    @Column(name = "event_identity", length = 64)
+    private String eventIdentity;
 
     // Exact JSON string as received from Paystack
     // Never alter this — it is the source of truth

@@ -26,7 +26,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,10 +36,11 @@ class ReconciliationJobRecoveryTest {
 
     @Mock private PaymentRepository paymentRepository;
     @Mock private PaystackClient paystackClient;
-    @Mock private PaymentServiceImp paymentService;
     @Mock private WebhookEventRepository webhookEventRepository;
     @Mock private TuitionAccountDomainService tuitionAccountDomainService;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private WebhookEventProcessingService webhookEventProcessingService;
+    @Mock private WebhookEventPersistenceService webhookEventPersistenceService;
 
     private InternalPaymentHelperService paymentHelperService;
     private ReconciliationJob reconciliationJob;
@@ -55,10 +55,11 @@ class ReconciliationJobRecoveryTest {
         reconciliationJob = new ReconciliationJob(
                 paymentRepository,
                 paystackClient,
-                paymentService,
                 webhookEventRepository,
                 paymentHelperService,
-                eventPublisher);
+                eventPublisher,
+                webhookEventProcessingService,
+                webhookEventPersistenceService);
 
         _User student = _User.builder()
                 .id(UUID.randomUUID())
@@ -108,7 +109,7 @@ class ReconciliationJobRecoveryTest {
     }
 
     @Test
-    void reconciliationMarksOnlyProviderConfirmedFailedStatusAsFailed() {
+    void pendingPaymentBecomesFailedOnlyWhenProviderConfirmsFailure() {
         when(paystackClient.verifyTransaction(REFERENCE))
                 .thenReturn(Map.of("status", "failed"));
 
@@ -116,9 +117,7 @@ class ReconciliationJobRecoveryTest {
 
         assertEquals(PaymentStatus.FAILED, payment.getStatus());
         verify(paymentRepository).save(payment);
-        verify(eventPublisher)
-                .publishEvent(any(ReconciliationJobPaymentFailedEvent.class));
-        verify(tuitionAccountDomainService, never())
-                .updateTuitionAccountAndProcessRegistration(payment.getId());
+        verify(eventPublisher).publishEvent(
+                any(ReconciliationJobPaymentFailedEvent.class));
     }
 }

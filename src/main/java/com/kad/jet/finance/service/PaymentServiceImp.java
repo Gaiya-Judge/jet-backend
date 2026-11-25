@@ -8,7 +8,6 @@ import com.kad.jet.finance.mapper.PaymentMapper;
 import com.kad.jet.finance.model.*;
 import com.kad.jet.finance.repository.PaymentRepository;
 import com.kad.jet.finance.repository.TuitionAccountRepository;
-import com.kad.jet.finance.repository.WebhookEventRepository;
 import com.kad.jet.notification.event.PaymentFailedEvent;
 import com.kad.jet.notification.event.PaymentVerifiedEvent;
 import com.kad.jet.registration.model.Registration;
@@ -25,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -48,7 +48,8 @@ public class PaymentServiceImp implements PaymentService {
     private final TuitionAccountRepository tuitionAccountRepository;
     private final RegistrationRepository registrationRepository;
     private final StudentProfileRepository studentProfileRepository;
-    private final WebhookEventRepository webhookEventRepository;
+    private final WebhookEventPersistenceService webhookEventPersistenceService;
+    private final WebhookEventProcessingService webhookEventProcessingService;
     private final SystemConfigService systemConfigService;
     private final PaystackClient paystackClient;
     private final PaystackConfig paystackConfig;
@@ -116,94 +117,75 @@ public class PaymentServiceImp implements PaymentService {
     }
 
     @Override
-    @Transactional
     public void handleWebhook(String paystackSignature, String rawPayload) {
 
-        // Step 1 — verify signature FIRST
-        // If this fails we reject immediately and save nothing
         verifyWebhookSignature(paystackSignature, rawPayload);
 
-        // Step 2 — parse the payload
         Map<String, Object> payload;
         try {
             payload = objectMapper.readValue(rawPayload, Map.class);
-        } catch (Exception e) {
-            log.error("Failed to parse webhook payload: {}",
-                    e.getMessage());
+        } catch (Exception exception) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "invalid webhook payload format");
+                    "invalid webhook payload format",
+                    exception);
         }
 
-        String event = (String) payload.get("event");
-        Map<String, Object> data =
-                (Map<String, Object>) payload.get("data");
-        String reference = data != null
-                ? (String) data.get("reference") : "UNKNOWN";
-
-        log.info("Webhook received. Event: {} Reference: {}",
-                event, reference);
-
-        Payment payment = paymentRepository
-                .findByIdempotencyKey(reference)
-                .orElse(null);
-
-        if (payment != null
-                && payment.getStatus() == PaymentStatus.VERIFIED
-                && Boolean.TRUE.equals(payment.getAppliedToAccount())) {
-            log.info("Duplicate already-applied webhook for reference: {}. Skipping.", reference);
-            return;
+        Object eventValue = payload.get("event");
+        if (!(eventValue instanceof String eventType)
+                || eventType.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "webhook event type is required");
         }
 
-        // Step 3 — persist raw event BEFORE processing
+        Object dataValue = payload.get("data");
+        if (dataValue != null && !(dataValue instanceof Map<?, ?>)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "webhook data must be an object");
+        }
+        Map<String, Object> data = dataValue instanceof Map<?, ?>
+                ? (Map<String, Object>) dataValue : null;
+        Object referenceValue = data == null ? null : data.get("reference");
+        String reference = referenceValue instanceof String value
+                && !value.isBlank() ? value : "UNKNOWN";
+        if ("charge.success".equals(eventType)
+                && "UNKNOWN".equals(reference)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "charge.success webhook reference is required");
+        }
+
+        String eventIdentity = WebhookEventIdentity.create(
+                "PAYSTACK", eventType, reference, data, rawPayload);
         WebhookEvent webhookEvent = WebhookEvent.builder()
                 .provider("PAYSTACK")
-                .eventType(event != null ? event : "UNKNOWN")
+                .eventType(eventType)
                 .reference(reference)
+                .eventIdentity(eventIdentity)
                 .rawPayload(rawPayload)
                 .signature(paystackSignature)
                 .processed(false)
                 .build();
 
-        webhookEventRepository.save(webhookEvent);
-
-        // Step 4 — ignore non-charge events
-        // Paystack sends many event types — we only care about
-        // successful charges
-        if (!"charge.success".equals(event)) {
-            log.info("Ignoring webhook event type: {}", event);
-            markWebhookProcessed(webhookEvent, null);
-            return;
+        UUID eventId;
+        try {
+            eventId = webhookEventPersistenceService.persist(webhookEvent);
+        } catch (DataIntegrityViolationException duplicateIdentity) {
+            eventId = webhookEventPersistenceService
+                    .findIdByEventIdentity(eventIdentity)
+                    .orElseThrow(() -> duplicateIdentity);
         }
 
-        // Step 5 — process the charge
         try {
-            Payment verifiedPayment = processChargeSuccess(data, reference);
-            markWebhookProcessed(webhookEvent, null);
-
-            if (verifiedPayment != null){
-                eventPublisher.publishEvent(
-                        new PaymentVerifiedEvent(
-                                verifiedPayment.getId(),
-                                verifiedPayment.getTuitionAccount().getId(),
-                                verifiedPayment.getTuitionAccount().getStudent().getId(),
-                                verifiedPayment.getAmount(),
-                                Boolean.TRUE.equals(verifiedPayment.getAppliedToAccount())
-                        )
-                );
-            }
-        } catch (Exception e) {
-            // Mark as failed but do not re-throw
-            // We already returned 200 to Paystack
-            // Re-throwing would cause Paystack to retry
-            // which could cause duplicate processing
-            markWebhookFailed(webhookEvent, e.getMessage());
-            log.error("Webhook processing failed for reference " +
-                    "{}: {}", reference, e.getMessage());
-            // IMPORTANT: For production, ensure robust monitoring and alerting for WebhookEvent
-            // records where 'processed' is false and 'processingError' is populated.
-            // These indicate failed processing that requires manual investigation and potential reprocessing.
-        };
+            webhookEventProcessingService.processIncomingEvent(eventId);
+        } catch (Exception processingException) {
+            webhookEventPersistenceService.recordProcessingFailure(
+                    eventId, processingException.getMessage());
+            log.error("Webhook processing failed for reference {}: {}",
+                    reference, processingException.getMessage());
+        }
     }
 
     @Override
@@ -594,82 +576,6 @@ public class PaymentServiceImp implements PaymentService {
                 randomPart.substring(0, 12);
     }
 
-    private Payment processChargeSuccess(
-            Map<String, Object> data,
-            String reference) {
-
-        String status = (String) data.get("status");
-
-        // Find the matching payment by reference
-        Payment payment = paymentRepository
-                .findByIdempotencyKey(reference)
-                .orElse(null);
-
-        if (payment == null) {
-            log.warn("Webhook received for unknown reference: {}. " +
-                    "This could be a test event from Paystack " +
-                    "dashboard.", reference);
-            return null;
-        }
-
-        // IDEMPOTENCY CHECK — most important guard
-        // If Paystack fires the webhook twice (which it can),
-        // the second call finds this condition and exits cleanly.
-        // Balance is NOT updated twice. Registration is NOT
-        // completed twice. Data stays consistent.
-        if (payment.getStatus() == PaymentStatus.VERIFIED) {
-            if (!Boolean.TRUE.equals(payment.getAppliedToAccount())){
-                tuitionAccountDomainService
-                        .updateTuitionAccountAndProcessRegistration(payment.getId());
-            }
-            log.info("Payment {} already verified — " +
-                            "duplicate webhook ignored. " +
-                            "Idempotency working correctly.",
-                    reference);
-            return null;
-        }
-
-        // Paystack itself says the payment failed
-        if (!"success".equals(status)) {
-            payment.setStatus(PaymentStatus.FAILED);
-            paymentRepository.save(payment);
-            log.warn("Paystack reported payment failure " +
-                    "for reference: {}", reference);
-            return null;
-        }
-
-        // Verify the amount Paystack charged matches
-        // what we expected. Paystack returns amount in KOBO.
-        Object amountObj = data.get("amount");
-        BigDecimal paidAmountNaira =
-                PaystackAmountConverter.toNaira(amountObj);
-
-        if (paidAmountNaira.compareTo(payment.getAmount()) != 0) {
-            log.error("AMOUNT MISMATCH for reference {}. " +
-                            "Expected: ₦{} Paystack reported: ₦{}. " +
-                            "Marking as FAILED for manual investigation.",
-                    reference,
-                    payment.getAmount(),
-                    paidAmountNaira);
-            payment.setStatus(PaymentStatus.FAILED);
-            paymentRepository.save(payment);
-            return null;
-        }
-
-        // All checks passed — mark the payment as verified
-        payment.setStatus(PaymentStatus.VERIFIED);
-        payment.setVerifiedAt(LocalDateTime.now());
-        paymentRepository.save(payment);
-
-        // Update tuition account and complete registration
-        tuitionAccountDomainService.updateTuitionAccountAndProcessRegistration(payment.getId());
-
-        log.info("Payment {} verified successfully. Amount: ₦{}",
-                reference, paidAmountNaira);
-
-        return payment;
-    }
-
     private TuitionAccount findTuitionAccount(UUID id) {
         return tuitionAccountRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -684,17 +590,4 @@ public class PaymentServiceImp implements PaymentService {
                         "payment not found"));
     }
 
-    private void markWebhookProcessed(
-            WebhookEvent event, String note) {
-        event.setProcessed(true);
-        event.setProcessedAt(LocalDateTime.now());
-        webhookEventRepository.save(event);
-    }
-
-    private void markWebhookFailed(
-            WebhookEvent event, String errorMessage) {
-        event.setProcessed(false);
-        event.setProcessingError(errorMessage);
-        webhookEventRepository.save(event);
-    }
 }

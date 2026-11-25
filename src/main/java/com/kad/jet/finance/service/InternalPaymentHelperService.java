@@ -33,7 +33,7 @@ public class InternalPaymentHelperService {
     }
 
     @Transactional
-    public void applyVerifiedPayment(Payment payment) {
+    public boolean applyVerifiedPayment(Payment payment) {
         boolean appliedToAccount = tuitionAccountDomainService
                 .updateTuitionAccountAndProcessRegistration(payment.getId());
 
@@ -44,11 +44,36 @@ public class InternalPaymentHelperService {
             log.warn("Verified payment {} was not applied because the tuition account is already PAID.",
                     payment.getPaystackReference());
         }
+        return appliedToAccount;
     }
 
     @Transactional
     public void processVerifiedPayment(Payment payment, Map<String, Object> paystackData){
+        VerifiedPaymentOutcome outcome =
+                verifyAmountAndApplyPayment(payment, paystackData);
+        if (!outcome.verified()) {
+            return;
+        }
 
+        eventPublisher.publishEvent(new ReconciliationJobPaymentVerifiedEvent(
+                payment.getId(),
+                payment.getTuitionAccount().getId(),
+                payment.getTuitionAccount().getStudent().getId(),
+                payment.getAmount(),
+                outcome.appliedToAccount()
+        ));
+    }
+
+    @Transactional
+    public VerifiedPaymentOutcome processWebhookPayment(
+            Payment payment,
+            Map<String, Object> paystackData) {
+        return verifyAmountAndApplyPayment(payment, paystackData);
+    }
+
+    private VerifiedPaymentOutcome verifyAmountAndApplyPayment(
+            Payment payment,
+            Map<String, Object> paystackData) {
         //get amount
         Object amountObj = paystackData.get("amount");
         BigDecimal paidAmountNaira =
@@ -61,7 +86,7 @@ public class InternalPaymentHelperService {
                     payment.getAmount(),
                     paidAmountNaira);
             markPaymentFailed(payment);
-            return;
+            return new VerifiedPaymentOutcome(false, false);
         }
 
         payment.setStatus(PaymentStatus.VERIFIED);
@@ -71,18 +96,15 @@ public class InternalPaymentHelperService {
         boolean appliedToAccount = tuitionAccountDomainService
                 .updateTuitionAccountAndProcessRegistration(payment.getId());
 
-        eventPublisher.publishEvent(new ReconciliationJobPaymentVerifiedEvent(
-                payment.getId(),
-                payment.getTuitionAccount().getId(),
-                payment.getTuitionAccount().getStudent().getId(),
-                payment.getAmount(),
-                appliedToAccount
-        ));
-
         log.info("Payment {} verified via reconciliation. " +
                         "Amount: ₦{}",
                 payment.getPaystackReference(),
                 paidAmountNaira);
+        return new VerifiedPaymentOutcome(true, appliedToAccount);
+    }
 
+    public record VerifiedPaymentOutcome(
+            boolean verified,
+            boolean appliedToAccount) {
     }
 }

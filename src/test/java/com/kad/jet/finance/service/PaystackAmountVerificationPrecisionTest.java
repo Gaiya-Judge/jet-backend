@@ -9,7 +9,6 @@ import com.kad.jet.finance.model.PaymentStatus;
 import com.kad.jet.finance.model.TuitionAccount;
 import com.kad.jet.finance.repository.PaymentRepository;
 import com.kad.jet.finance.repository.TuitionAccountRepository;
-import com.kad.jet.finance.repository.WebhookEventRepository;
 import com.kad.jet.notification.event.PaymentVerifiedEvent;
 import com.kad.jet.registration.model.Registration;
 import com.kad.jet.registration.repository.RegistrationRepository;
@@ -52,7 +51,8 @@ class PaystackAmountVerificationPrecisionTest {
     @Mock private TuitionAccountRepository tuitionAccountRepository;
     @Mock private RegistrationRepository registrationRepository;
     @Mock private StudentProfileRepository studentProfileRepository;
-    @Mock private WebhookEventRepository webhookEventRepository;
+    @Mock private WebhookEventPersistenceService webhookEventPersistenceService;
+    @Mock private WebhookEventProcessingService webhookEventProcessingService;
     @Mock private SystemConfigService systemConfigService;
     @Mock private PaystackClient paystackClient;
     @Mock private PaystackConfig paystackConfig;
@@ -73,7 +73,8 @@ class PaystackAmountVerificationPrecisionTest {
                 tuitionAccountRepository,
                 registrationRepository,
                 studentProfileRepository,
-                webhookEventRepository,
+                webhookEventPersistenceService,
+                webhookEventProcessingService,
                 systemConfigService,
                 paystackClient,
                 paystackConfig,
@@ -129,35 +130,23 @@ class PaystackAmountVerificationPrecisionTest {
     }
 
     @Test
-    void webhookDoesNotApplyFractionalKoboAmount() throws Exception {
-        when(paymentRepository.findByIdempotencyKey(REFERENCE))
-                .thenReturn(Optional.of(payment));
-        when(paystackConfig.getSecretKey()).thenReturn(WEBHOOK_SECRET);
-        when(objectMapper.readValue(anyString(), any(Class.class)))
-                .thenReturn(Map.of(
-                        "event", "charge.success",
-                        "data", Map.of(
-                                "reference", REFERENCE,
-                                "status", "success",
-                                "amount", new BigDecimal("7000.5"))));
-
-        String payload =
-                "{\"event\":\"charge.success\",\"data\":{\"reference\":\""
-                        + REFERENCE + "\"}}";
-        paymentService.handleWebhook(signature(payload), payload);
+    void reconciliationDoesNotApplyFractionalKoboAmount() {
+        assertThrows(IllegalArgumentException.class,
+                () -> paymentHelperService.processVerifiedPayment(
+                        payment,
+                        Map.of("amount", new BigDecimal("7000.5"))));
 
         assertEquals(PaymentStatus.PENDING, payment.getStatus());
         verify(paymentRepository, never()).save(payment);
         verify(tuitionAccountDomainService, never())
                 .updateTuitionAccountAndProcessRegistration(payment.getId());
-        verify(eventPublisher, never())
-                .publishEvent(any(PaymentVerifiedEvent.class));
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
-    void reconciliationDoesNotApplyFractionalKoboAmount() {
+    void webhookProcessingRejectsFractionalKoboBeforeApplyingPayment() {
         assertThrows(IllegalArgumentException.class,
-                () -> paymentHelperService.processVerifiedPayment(
+                () -> paymentHelperService.processWebhookPayment(
                         payment,
                         Map.of("amount", new BigDecimal("7000.5"))));
 

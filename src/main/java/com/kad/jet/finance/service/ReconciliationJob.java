@@ -6,16 +6,12 @@ import com.kad.jet.finance.model.WebhookEvent;
 import com.kad.jet.finance.repository.PaymentRepository;
 import com.kad.jet.finance.repository.WebhookEventRepository;
 import com.kad.jet.notification.event.ReconciliationJobPaymentFailedEvent;
-import jakarta.transaction.Transactional;
-import jdk.jfr.EventType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -27,10 +23,11 @@ public class ReconciliationJob {
 
     private final PaymentRepository paymentRepository;
     private final PaystackClient paystackClient;
-    private final PaymentServiceImp paymentService;
     private final WebhookEventRepository webhookEventRepository;
     private final InternalPaymentHelperService paymentHelperService;
     private final ApplicationEventPublisher eventPublisher;
+    private final WebhookEventProcessingService webhookEventProcessingService;
+    private final WebhookEventPersistenceService webhookEventPersistenceService;
 
     @Scheduled(fixedRate = 600000)
     public void reconcilePendingPayment(){
@@ -109,68 +106,36 @@ public class ReconciliationJob {
         log.info("Found {} unproccessed webhook event to retry",
                 failedEvent.size());
 
-
         for (WebhookEvent event : failedEvent){
-
             try {
-                // Only retry charge.success events
                 if (!"charge.success".equals(event.getEventType())) {
-                    event.setProcessed(true);
-                    event.setProcessedAt(LocalDateTime.now());
-                    webhookEventRepository.save(event);
+                    webhookEventProcessingService.processRetryEvent(
+                            event.getId(), null);
                     continue;
                 }
 
                 log.info("Retrying webhook event for reference: {}",
                         event.getReference());
 
-
-                //find and process payment
-                paymentRepository
+                Payment payment = paymentRepository
                         .findByIdempotencyKey(event.getReference())
-                        .ifPresent(payment -> {
-                            if (payment.getStatus().equals(PaymentStatus.PENDING)){
-                                //re-verify with paystack before process
+                        .orElseThrow(() -> new IllegalStateException(
+                                "payment not found for webhook reference: "
+                                        + event.getReference()));
+                Map<String, Object> paystackData = null;
+                if (payment.getStatus() == PaymentStatus.PENDING) {
+                    paystackData = paystackClient
+                            .verifyTransaction(event.getReference());
+                }
 
-                                try {
-                                    Map<String, Object> data =
-                                            paystackClient
-                                                    .verifyTransaction(event.getReference());
-
-                                    if ("success".equals(
-                                            data.get("status"))){
-                                                paymentHelperService.processVerifiedPayment(payment, data);
-                                                event.setProcessed(true);
-                                                event.setProcessedAt(LocalDateTime.now());
-                                                webhookEventRepository
-                                                        .save(event);
-                                    }
-
-                                } catch (Exception e) {
-                                    log.error("Retry failed for " +
-                                            " reference {}: {}.",
-                                            event.getReference(),
-                                            e.getMessage());
-                                }
-                            } else if (payment.getStatus().equals(PaymentStatus.VERIFIED) &&
-                                    !Boolean.TRUE.equals(payment.getAppliedToAccount())){
-
-                                paymentHelperService.applyVerifiedPayment(payment);
-                                event.setProcessed(true);
-                                event.setProcessedAt(LocalDateTime.now());
-                                webhookEventRepository.save(event);
-
-                            }else {
-                                event.setProcessed(true);
-                                event.setProcessedAt(LocalDateTime.now());
-                                webhookEventRepository
-                                        .save(event);
-                            }
-                        });
-            } catch (Exception e) {
-                log.error("Error retying webhook event {}: {}",
+                webhookEventProcessingService.processRetryEvent(
+                        event.getId(), paystackData);
+            } catch (Exception exception) {
+                webhookEventPersistenceService.recordProcessingFailure(
+                        event.getId(), exception.getMessage());
+                log.error("Error retrying webhook event {}: {}",
                         event.getReference(),
-                        e.getMessage());
+                        exception.getMessage());
             }
         }
     }
